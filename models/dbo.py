@@ -39,6 +39,8 @@ class User(Base):
 	status = Column(Boolean, default=False)
 	created_at = Column(DateTime, default=datetime.now())
 	last_login = Column(DateTime, default=datetime.now())
+	secret = Column(Text)
+	token = Column(Text)
 
 class Role(Base):
 	__tablename__ = 'roles'
