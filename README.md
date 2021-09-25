@@ -9,9 +9,9 @@ python3 dbo.py #instantiates database
 
 ```
 
-The rest of is involves calling APIs
+The rest of involves calling APIs
 
-### Signing up
+### Signing up with JavaScript
 
 ```{javascript}
 data = new FormData()
@@ -23,7 +23,7 @@ fetch(`https://myautheoserver.io/ent/signup`, {method: 'POST', body: data})
 
 ```
 
-### Loging in
+### Loging in with JavaScript
 
 ```{javascript}
 data = new FormData()
@@ -35,7 +35,7 @@ fetch(`https://myautheoserver.io/ent/login`, {method: 'POST', body: data})
 
 ```
 
-### Loging out
+### Loging out with JavaScript
 
 ```{javascript}
 data = new FormData()
