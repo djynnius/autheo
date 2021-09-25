@@ -1,6 +1,8 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 
 autheo = Flask(__name__)
+CORS(autheo)
 
 #import controllers
 from controllers.authentication import ent
@@ -8,6 +10,7 @@ from controllers.authentication import ent
 
 #register controllers
 autheo.register_blueprint(ent)
+
 
 @autheo.route('/')
 def index():

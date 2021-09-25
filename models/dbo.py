@@ -7,7 +7,7 @@ from sqlalchemy import (
 	String, 
 	Text, 
 	Date, 
-	Datetime, 
+	DateTime, 
 	Boolean, 
 	ForeignKey
 )
@@ -15,15 +15,16 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib import parse
+from datetime import datetime
 
 Base = declarative_base()
 
 class DBO():
-	def __init__(self):
-		adapter = 'sqlite:///autheo.db'
-		#adapter = '''mysql+pymysql://{user}:{pswd}@{host}:{port}/{name}'''.format(user='root', pswd=parse.quote('pswd'), host='127.0.0.1', port='3360', name='autheo')
-		
-		self.engine = create_engine(adapter)
+	def __init__(self, sqlite_path='autheo.db'):
+		dsn = 'sqlite:///{sqlite_path}'.format(sqlite_path=sqlite_path)
+		#config = {'conn':'mysql', 'user':'root', 'pswd':parse.quote('pswd'), 'host':'127.0.0.1', 'port':'3360', 'name':'autheo')
+		#dsn = '''{conn}://{user}:{pswd}@{host}:{port}/{name}'''.format(config)
+		self.engine = create_engine(dsn)
 		
 		session = sessionmaker(bind=self.engine)
 		self.sess = session()
@@ -31,12 +32,13 @@ class DBO():
 class User(Base):
 	__tablename__ = 'users'
 	id = Column(Integer, primary_key=True)
+	_id = Column(Text, unique=True)
 	username = Column(String(32))
 	email = Column(String(50))
 	password = Column(Text)
 	status = Column(Boolean, default=False)
-	created_at = Column(DateTime)
-	last_login = Column(DateTime)
+	created_at = Column(DateTime, default=datetime.now())
+	last_login = Column(DateTime, default=datetime.now())
 
 class Role(Base):
 	__tablename__ = 'roles'
@@ -44,27 +46,50 @@ class Role(Base):
 	role = Column(String(75), unique=True)
 	description = Column(Text)
 
+class UserRole(Base):
+	__tablename__ = 'users_roles'
+	id = Column(Integer, primary_key=True)
+	user_id = Column(Integer, ForeignKey('users.id'))
+	role_id = Column(Integer, ForeignKey('roles.id'))
+
+class Module(Base):
+	__tablename__ = 'modules'
+	id = Column(Integer, primary_key=True)
+	module = Column(String(75), unique=True)
+	description = Column(Text)
+
+class ModuleRole(Base):
+	__tablename__ = 'modules_roles'
+	id = Column(Integer, primary_key=True)
+	module_id = Column(Integer, ForeignKey('modules.id'))
+	role_id = Column(Integer, ForeignKey('roles.id'))
+	permissions = Column(Integer) #use Unix convention read=1, write=2, execute=4
+
 
 #onetime initialization
 if __name__ == '__main__':
+	#instantiate DB object
 	dbo = DBO()
 
-	roles = [role for role in dbo.engine.execute('SELECT * FROM roles').fetchall()]
+	Base.metadata.create_all(dbo.engine)
 
-	if len(roles) == 0:
+	admin = Role()
+	admin.role = 'Admin'
+	admin.description = 'The system administrator and superuser'
 
-		Base.metadata.create_all(dbo.engine)
+	registered = Role()
+	registered.role = 'Registered User'
+	registered.description = 'Registered user with login privileges'
 
-		admin = Role()
-		admin.role = 'Admin'
-		admin.description = 'The system administrator and superuser'
+	anon = Role()
+	anon.role = 'Anonymous'
+	anon.description = 'Anonymous login with no privileges'
 
-		registered = Role()
-		registered.role = 'Registered User'
-		registered.description = 'Registered user with login privileges'
+	dbo.sess.add_all([admin, registered, anon])
 
-		anon = Role()
-		anon.role = 'Anonymous'
-		anon.description = 'Anonymous login with no privileges'
+	admin_role = UserRole()
+	admin_role.user_id = 1
+	admin_role.role_id = 1
+	dbo.sess.add(admin_role)
 
-		dbo.sess.add_all([admin, registered, anon])
+	dbo.sess.commit()
