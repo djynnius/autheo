@@ -166,26 +166,59 @@ Admin Methods
 ------------------------------------------------------------------------------------------
 '''
 
-@ent.route('/get_users')
+@ent.route('/get_users', methods=['POST'])
 @cross_origin()
 def get_users():
-	return jsonify(dict())
+	users = [ dict(
+		_id=user._id, 
+		username=user.username, 
+		email=user.email, 
+		since=user.created_at, 
+		last_login=user.last_login, 
+		loggedin='yes' if user.status == True else 'no'
+		) for user in dbo.sess.query(User).all()]
+	return jsonify(dict(users=users))
 
 
-@ent.route('/get_user/<_id>')
+@ent.route('/get_user/<_id>',methods=['POST'])
 @cross_origin()
 def get_user(_id):
-	return jsonify(dict())
+	try:
+		user = dbo.sess.query(User).filter_by(_id=_id).one()
+		return jsonify(dict(
+			status='success', 
+			_id=user._id,
+			username=user.username, 
+			email=user.email, 
+			since=user.created_at, 
+			last_login=user.last_login, 
+			loggedin='yes' if user.status == True else 'no'
+		))
+	except:
+		return jsonify(dict(status='error', msg='the user was not found'))
 
 
-@ent.route('/delete_user/<_id>')
+@ent.route('/delete_user/<_id>', methods=['DELETE'])
 @cross_origin()
 def delete_user(_id):
-	return jsonify(dict())
+	try:
+		user = dbo.sess.query(User).filter_by(_id=_id).one()
+		if user.id == 1:
+			return jsonify(dict(status='error', msg='you are not allowed to delete the superuser account'))
 
-@ent.route('/flush_users')
+		dbo.sess.delete(user)
+		dbo.sess.commit()
+		return jsonify(dict(status='success', msg='the user was deleted'))
+	except:
+		dbo.sess.rollback()
+		return jsonify(dict(status='error', msg='the user was not found'))
+
+	return jsonify(dict(status='error', msg='unknown'))
+
+@ent.route('/flush_users', methods=['DELETE'])
 @cross_origin()
 def flush_users():
+	dbo.engine.execute("DELETE FROM users WHERE id > 1")
 	return jsonify(dict())
 
 
