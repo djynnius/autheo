@@ -302,58 +302,132 @@ The Unix standard is used
 6 = Write and Execute/Delete but not Read
 7 = Full priviledges ie Read Edit/Write and Execute/Delete
 '''
-
-@ori.route("/set_role_privileges/<module>/<role>/<permission>", methods=['POST'])
+@ori.route("/set_role_permissions/<module>/<role>/<permission>", methods=['POST'])
 @cross_origin()
-def set_role_privileges(module, role, permission):
+def set_role_permissions(module, role, permission):
 	module = module.strip().lower()
 	role = role.strip().lower()
+	permission = int(permission)
 	
 	mrs = dbo.engine.execute('''
 		SELECT mr.id, mr.module_id, mr.role_id
 		FROM modules_roles AS mr 
 			LEFT JOIN modules AS m ON mr.module_id=m.id 
 			LEFT JOIN roles AS r ON mr.role_id=r.id
-		WHERE m.module='{module}' AND r.role='{role}'
+		WHERE LOWER(m.module)='{module}' AND LOWER(r.role)='{role}'
 	'''.format(module=module, role=role)).fetchall()
 
 	try:
-		omodule = dbo.sess.query(Module).filter_by(module=module).one()
+		omodule = dbo.engine.execute("SELECT * FROM modules WHERE LOWER(module)='{module}'".format(module=module)).fetchone()
 		orole = dbo.sess.query(Role).filter_by(role=role).one()
-
 		if len(mrs) == 0:
 			mr = ModuleRole()
 			mr.module_id = omodule.id
 			mr.role_id = orole.id
-			mr.permission = permission
+			mr.permissions = permission
 			dbo.sess.add(mr)
 		elif len(mrs) == 1:
 			mr = ModuleRole(id=mrs[0].id)
 			mr.module_id = omodule.id
 			mr.role_id = orole.id
-			mr.permission = permission			
+			mr.permissions = permission			
 		else:
 			return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
 
 		dbo.sess.commit()
+		return jsonify(dict(status='success', msg='permissions updated'))
 
 	except:
 		dbo.sess.rollback()
-		return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
+		return jsonify(dict(status='error', msg='unknown: possibly module or role does not exist'))
 
-	return jsonify(dict(status='success', msg='permissions updated'))
+	return jsonify(dict(status='error', msg='unknown'))
 
-@ori.route("/set_user_privileges/<module_id>/<_id>/<permission>", methods=['POST'])
+'''
+Set permissions that are specific to users
+'''
+@ori.route("/set_user_permissions/<module>/<_id>/<permission>", methods=['POST'])
 @cross_origin()
-def set_user_privileges(module_id, _id, permission):
+def set_user_permissions(module_id, _id, permission):
+	module = module.strip().lower()
+	permission = int(permission)
+	
+	mus = dbo.engine.execute('''
+		SELECT mu.id, mu.module_id, mu.user_id
+		FROM modules_users AS mu 
+			LEFT JOIN modules AS m ON mu.module_id=m.id 
+			LEFT JOIN users AS u ON mu.user_id=u.id
+		WHERE LOWER(m.module)='{module}' AND u._id='{_id}'
+	'''.format(module=module, _id=_id)).fetchall()
+
+	try:
+		omodule = dbo.engine.execute("SELECT * FROM modules WHERE LOWER(module)='{module}'".format(module=module)).fetchone()
+		ouser = dbo.sess.query(User).filter_by(_id=_id).one()
+		if len(mus) == 0:
+			mu = ModuleUser()
+			mu.module_id = omodule.id
+			mu.user_id = ouser.id
+			mu.permissions = permission
+			dbo.sess.add(mu)
+		elif len(mus) == 1:
+			mu = ModuleUser(id=mrs[0].id)
+			mu.module_id = omodule.id
+			mu.user_id = ouser.id
+			mu.permissions = permission			
+		else:
+			return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module user'))
+
+		dbo.sess.commit()
+		return jsonify(dict(status='success', msg='permissions updated'))
+
+	except:
+		dbo.sess.rollback()
+		return jsonify(dict(status='error', msg='unknown: possibly module or role does not exist'))
+
+	return jsonify(dict(status='error', msg='unknown'))
+
+'''
+Remove all role permissions for a particular module
+'''
+@ori.route("/remove_role_permissions/<module>", methods=['POST'])
+@cross_origin()
+def remove_role_permissions(module):
+	module = dbo.engine.execute("SELECT * FROM modules WHERE LOWER(module)='{module}'".format(module=module)).fetchone()
+	dbo.engine.execute('''
+		DELETE FROM modules_roles WHERE module_id='{mid}'
+	'''.format(mid=module.id))	
 	return jsonify(dict(status='success'))
 
-@ori.route("/flush_role_privileges/<module_id>/<role_id>", methods=['POST'])
+'''
+Remove all permissions in the modules_roles table
+'''
+@ori.route("/flush_role_permissions", methods=['POST'])
 @cross_origin()
-def flush_role_privileges(module_id, role_id):
+def flush_role_permissions():
+	dbo.engine.execute('''
+		DELETE FROM modules_roles
+	''')	
 	return jsonify(dict(status='success'))
 
-@ori.route("/flush_user_privileges/<module_id>/<_id>", methods=['POST'])
+'''
+Remove user permissions for a particular module
+'''
+@ori.route("/remove_user_permissions/<module>", methods=['POST'])
 @cross_origin()
-def flush_user_privileges(module_id, _id):
+def remove_user_permissions(module):
+	module = dbo.engine.execute("SELECT * FROM modules WHERE LOWER(module)='{module}'".format(module=module)).fetchone()
+	dbo.engine.execute('''
+		DELETE FROM modules_users WHERE module_id='{mid}'
+	'''.format(mid=module.id))	
+	return jsonify(dict(status='success'))
+
+'''
+Remove all permissions in the modules_users table
+'''
+@ori.route("/flush_user_permissions", methods=['POST'])
+@cross_origin()
+def flush_user_permissions():
+	dbo.engine.execute('''
+		DELETE FROM modules_users
+	''')	
 	return jsonify(dict(status='success'))
