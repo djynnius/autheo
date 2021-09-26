@@ -180,7 +180,8 @@ def get_users():
 		email=user.email, 
 		since=user.created_at, 
 		last_login=user.last_login, 
-		loggedin='yes' if user.status == True else 'no'
+		loggedin='yes' if user.status == True else 'no',
+		verified='yes' if user.verified == True else 'no'
 
 		) for user in dbo.sess.query(User).all()]
 	return jsonify(dict(users=users))
@@ -201,7 +202,8 @@ def get_user(_id):
 			email=user.email, 
 			since=user.created_at, 
 			last_login=user.last_login, 
-			loggedin='yes' if user.status == True else 'no'
+			loggedin='yes' if user.status == True else 'no',
+			verified='yes' if user.verified == True else 'no'
 		))
 	except:
 		return jsonify(dict(status='error', msg='the user was not found'))
@@ -266,6 +268,17 @@ def update_password(_id):
 	return jsonify(dict(status='success', msg='password for {_id} successfully updated'.format(_id=_id)))
 
 
+'''
+Verify a user account example by phone or email
+'''
+@ent.route("/verify/<_id>")
+@cross_origin()
+def verify(_id):
+	user = dbo.sess.query(User).filter_by(_id=_id).one()
+	user.verify = True
+	_id = user._id
+	dbo.sess.commit()
+	return jsonify(dict(status='success', msg='user {_id} was successfully verified'.format(_id=_id)))
 
 '''
 Helper methods are below this comment
