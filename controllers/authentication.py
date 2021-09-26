@@ -66,6 +66,7 @@ def signup():
 	if len(people) > 0:
 		return jsonify(dict(status='error', message='a user with these credentials already exists'))
 
+	#instantiate user object
 	user = User()
 	user.username = username
 	user.email = email
@@ -124,7 +125,7 @@ def login():
 			#get previous login before setting current login to now
 			last_login = user.last_login if user.last_login != user.created_at else datetime(1, 1, 1, 1, 1, 1)
 			user.last_login = datetime.now()
-			user.status = 1 #set login status to 1
+			user.status = True #set login status to 1
 			user.token = tokenize(user) #create a JWT token to allow login from multiple machines
 
 			dbo.sess.commit()
@@ -152,9 +153,10 @@ Logout of account
 @ent.route("/logout/<_id>", methods=['POST', 'GET'])
 def logout(_id):
 	try:
+		#intantiate use object
 		user = dbo.sess.query(User).filter_by(_id=_id).one()
-		user.status = 0
-		user.token = reset_token(user)
+		user.status = False #set login status to flase
+		user.token = reset_token(user) #reset token so all other accounts are logged out
 		dbo.sess.commit()
 		return jsonify(dict(status='logged out', _id=_id))
 	except:
@@ -166,6 +168,9 @@ Admin Methods
 ------------------------------------------------------------------------------------------
 '''
 
+'''
+Get all users
+'''
 @ent.route('/get_users', methods=['POST'])
 @cross_origin()
 def get_users():
@@ -176,10 +181,14 @@ def get_users():
 		since=user.created_at, 
 		last_login=user.last_login, 
 		loggedin='yes' if user.status == True else 'no'
+
 		) for user in dbo.sess.query(User).all()]
 	return jsonify(dict(users=users))
 
 
+'''
+Get details for a particular user
+'''
 @ent.route('/get_user/<_id>',methods=['POST'])
 @cross_origin()
 def get_user(_id):
@@ -197,13 +206,15 @@ def get_user(_id):
 	except:
 		return jsonify(dict(status='error', msg='the user was not found'))
 
-
+'''
+DELETE a particular user
+'''
 @ent.route('/delete_user/<_id>', methods=['DELETE'])
 @cross_origin()
 def delete_user(_id):
 	try:
 		user = dbo.sess.query(User).filter_by(_id=_id).one()
-		if user.id == 1:
+		if user.id == 1: #check to exculde super user
 			return jsonify(dict(status='error', msg='you are not allowed to delete the superuser account'))
 
 		dbo.sess.delete(user)
@@ -215,11 +226,44 @@ def delete_user(_id):
 
 	return jsonify(dict(status='error', msg='unknown'))
 
+'''
+DELETE all users
+'''
 @ent.route('/flush_users', methods=['DELETE'])
 @cross_origin()
 def flush_users():
-	dbo.engine.execute("DELETE FROM users WHERE id > 1")
-	return jsonify(dict())
+	dbo.engine.execute("DELETE FROM users WHERE id > 1") #delete all except super user
+	return jsonify(dict(status='success', msg='all users have been successfully deleted'))
+
+'''
+Update a users password
+'''
+@ent.route("/update_password/_id", methods=['PUT'])
+@cross_origin()
+def update_password(_id):
+	keys = [item for item in req.form]
+
+	#expects password to be included in request
+	if 'password' not in keys:
+		return jsonify(dict(status='error', msg='no password'))
+
+	password = req.form.get('password', 'none').strip()
+
+	#username must be at least 8 characters in length and 
+	if len(password) < 8:
+		return jsonify(dict(status='error', message='password is less than 8 characters long'))
+
+	#password must contain lowecase, uppercase, number and special character and 
+	if re.search(r'[a-z]+', password) == None or re.search(r'[A-Z]+', password) == None or re.search(r'[0-9]+', password) == None or re.search(r'[_.$@*!+#%&-]+', password) == None: 
+		return jsonify(dict(status='error', message='password must contain lowercase, uppercase, number and special character'))
+
+	#instantiate user
+	user = dbo.sess.query(User).filter_by(_id=_id).one()
+	_id = user._id
+	user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()) #encrypt and reset password
+	dbo.sess.commit()
+
+	return jsonify(dict(status='success', msg='password for {_id} successfully updated'.format(_id=_id)))
 
 
 

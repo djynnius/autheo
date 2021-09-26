@@ -4,7 +4,6 @@ import re
 from models.dbo import *
 
 
-
 ori = Blueprint('ori', __name__, url_prefix='/ori')
 sqlite_path = ori.root_path.replace('controllers', 'dbs/autheo.db')
 dbo = DBO(sqlite_path)
@@ -78,23 +77,29 @@ def update_role(orole):
 	role=req.args.get('role', 'none')
 	description=req.args.get('description', '')
 
+	#check if role name is set
 	if role == 'none':
-		return jsonify(dict(status='error', msg='there is no row name'))
+		return jsonify(dict(status='error', msg='there is no row name in your request'))
 
+	#ensure role is alphanumeric with underscores allowed only
 	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', role) == None:
 		return jsonify(dict(status='error', msg='the role includes illegal characters'))	
 
+	#description validation
 	if re.search(r'([a-zA-Z0-9 ]+)([a-zA-Z0-9_. -]+)', description) == None:
 		return jsonify(dict(status='error', msg='the description includes illegal characters'))	
 
+	#clean role and description
 	role = role.strip().replace(' ', '_').lower()
 	description = description.strip()
 
+	#check if the role exists
 	if len(dbo.sess.query(Role).filter_by(role=orole).all()) != 1:
 		return jsonify(dict(status='error', msg='the role you want to update does not exists'))
 
 	draft_role = dbo.sess.query(Role).filter_by(role=orole).one()
 
+	#stop edits of the base roles
 	if draft_role.id in (1, 2, 3):
 		return jsonify(dict(status='error', msg='you cannot edit/update the base roles'))
 
@@ -114,9 +119,11 @@ Delete existing user defined role
 @ori.route("/delete_role/<role>", methods=['POST'])
 @cross_origin()
 def delete_role(role):
+	#check if the role exists
 	if len(dbo.sess.query(Role).filter_by(role=role).all()) != 1:
 		return jsonify(dict(status='error', msg='the role you want to delete does not exists'))
 
+	#instantiate role
 	role = dbo.sess.query(Role).filter_by(role=role).one()
 	_id = role.id
 
@@ -133,6 +140,7 @@ Assign Role to a User
 @cross_origin()
 def assign_role(_id, orole):
 
+	#check if the assignment exists or not
 	assignments = dbo.engine.execute('''
 		SELECT ur.id 
 		FROM users_roles AS ur 
@@ -141,12 +149,15 @@ def assign_role(_id, orole):
 		WHERE u._id='{_id}' AND r.role='{orole}'
 	'''.format(_id=_id, orole=orole)).fetchall()
 
+	#if assignment exists
 	if len(assignments) > 0:
 		return jsonify(dict(status='error', msg='this role has already been assigned'))
 
+	#continue if assignment is not set yet
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	role = dbo.sess.query(Role).filter_by(role=orole).one()
 
+	#instantiate user_role
 	ur = UserRole()
 	ur.user_id=user.id
 	ur.role_id=role.id
@@ -205,15 +216,17 @@ Register a module
 @ori.route("/register_module/<name>/<description>", methods=['POST'])
 @cross_origin()
 def register_module(name, description=''):
-
+	#validate module name
 	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', name) == None:
 		return jsonify(dict(status='error', msg='the module includes illegal characters'))	
 
+	#validate module description
 	if re.search(r'([a-zA-Z0-9 ]+)([a-zA-Z0-9_. -]+)', description) == None:
 		return jsonify(dict(status='error', msg='the description includes illegal characters'))	
 
+	#instantiate module
 	module = Module()
-	module.module = name.strip().replace(' ', '_')
+	module.module = name.strip().replace(' ', '_').lower()
 	module.description = description.strip()
 	
 	try:
@@ -234,10 +247,11 @@ Does not include description
 def register_modules():
 	modules = [a.strip().replace(' ', '_') for i,a in req.args.items()]
 	status = 'success'
-	successful = []
-	failed = []
+	successful = [] #container for modules that successfully get created
+	failed = [] #container for modules that fail to create - usually coz they already exist
 
 	for module in modules:
+		#validate module names
 		if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', module) == None:
 			return jsonify(dict(status='error', msg='one or more modules includes illegal characters'))		
 
