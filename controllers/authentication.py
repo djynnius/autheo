@@ -11,14 +11,16 @@ from models.dbo import *
 
 ent = Blueprint('authentication', __name__, url_prefix='/ent')
 sqlite_path = ent.root_path.replace('controllers', 'dbs/autheo.db')
-
 dbo = DBO(sqlite_path)
 
-
+'''
+Signup with email or username or both
+'''
 @ent.route("/signup", methods=['POST'])
 @cross_origin()
 def signup():
 	keys = [item for item in req.form]
+	print(keys)
 
 	#expects password to be included in request
 	if 'password' not in keys:
@@ -88,9 +90,11 @@ def signup():
 	user._id = _id
 	dbo.sess.commit()
 
-	return jsonify(dict(status='success', _id=_id))
+	return jsonify(dict(status='user created', _id=_id))
 
-
+'''
+Authenticate with username or password
+'''
 @ent.route("/login", methods=['POST'])
 @cross_origin()
 def login():
@@ -100,7 +104,7 @@ def login():
 	
 	#check if user exists in DB
 	try:
-		user = dbo.sess.query(User).filter(or_(User.username==username, User.email==email)).one()
+		user = dbo.sess.query(User).filter(and_(or_(User.username==username, User.email==email), User.email !='none')).one()
 		password = req.form.get('password', 'none').strip()
 
 		#check if password matches
@@ -135,14 +139,17 @@ def login():
 					last_login = last_login, 
 					roles = roles, 
 					token = user.token, 
-					status = 'success'
+					status = 'authenticated'
 				)
 			)
 		else:
 			return jsonify(dict(msg='authentication failed', status='error'))	
 	except:
 		return jsonify(dict(msg='user does not exist', status='error'))
-	
+
+'''
+Logout of account
+'''
 @ent.route("/logout/<_id>", methods=['POST', 'GET'])
 def logout(_id):
 	try:
@@ -150,12 +157,47 @@ def logout(_id):
 		user.status = 0
 		user.token = reset_token(user)
 		dbo.sess.commit()
-		return jsonify(dict(status='success', _id=_id))
+		return jsonify(dict(status='logged out', _id=_id))
 	except:
 		return jsonify(dict(status='error', msg='user does not exist or some other bad thing happend'))
 
+
+'''
+Admin Methods
+------------------------------------------------------------------------------------------
+'''
+
+@ent.route('/get_users')
+@cross_origin()
+def get_users():
+	return jsonify(dict())
+
+
+@ent.route('/get_user/<_id>')
+@cross_origin()
+def get_user(_id):
+	return jsonify(dict())
+
+
+@ent.route('/delete_user/<_id>')
+@cross_origin()
+def delete_user(_id):
+	return jsonify(dict())
+
+@ent.route('/flush_users')
+@cross_origin()
+def flush_users():
+	return jsonify(dict())
+
+
+
 '''
 Helper methods are below this comment
+------------------------------------------------------------------------------------------
+'''
+
+'''
+Create JWT Token
 '''
 def tokenize(user):
 	#check if token is expired
@@ -174,6 +216,9 @@ def tokenize(user):
 		)
 		return jwt.encode(payload, user.secret, algorithm="HS256")
 
+'''
+Create JWT Token as replacement
+'''
 def reset_token(user):
 	#forcefully create a new token
 	payload = dict(
@@ -186,6 +231,9 @@ def reset_token(user):
 	return jwt.encode(payload, user.secret, algorithm="HS256")
 
 
+'''
+Create expired JWT Token
+'''
 def init_token(user):
 	#create an expired token - useful for signup with no prior login
 	payload = dict(

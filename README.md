@@ -75,7 +75,7 @@ logout using the \_id property
 
 ```javascript
 //JavaScript
-fetch(`https://myautheoserver.io/ent/logout/euiueiuiuissadsadadsda`) 
+fetch(`https://myautheoserver.io/ent/logout/c68f463cx0d7f823df95y8c50943e651`) 
 	.then(r=>r.json())
 	.then(r=>console.log(r))
 

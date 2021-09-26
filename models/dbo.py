@@ -67,6 +67,13 @@ class ModuleRole(Base):
 	role_id = Column(Integer, ForeignKey('roles.id'))
 	permissions = Column(Integer) #use Unix convention read=1, write=2, execute=4
 
+class ModuleUser(Base):
+	__tablename__ = 'modules_users'
+	id = Column(Integer, primary_key=True)
+	module_id = Column(Integer, ForeignKey('modules.id'))
+	user_id = Column(Integer, ForeignKey('roles.id'))
+	permissions = Column(Integer) #use Unix convention read=1, write=2, execute=4
+
 
 #onetime initialization
 if __name__ == '__main__':
