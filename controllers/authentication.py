@@ -20,7 +20,6 @@ Signup with email or username or both
 @cross_origin()
 def signup():
 	keys = [item for item in req.form]
-	print(keys)
 
 	#expects password to be included in request
 	if 'password' not in keys:

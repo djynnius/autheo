@@ -129,26 +129,68 @@ def delete_role(role):
 '''
 Assign Role to a User
 '''
-@ori.route("/asign_role/<_id>/<role_id>", methods=['POST'])
+@ori.route("/assign_role/<_id>/<orole>", methods=['POST'])
 @cross_origin()
-def assign_role(_id, role_id):
-	return jsonify(dict(status='success'))
+def assign_role(_id, orole):
+
+	assignments = dbo.engine.execute('''
+		SELECT ur.id 
+		FROM users_roles AS ur 
+		LEFT JOIN users AS u ON ur.user_id=u.id 
+		LEFT JOIN roles AS r ON ur.role_id=r.id
+		WHERE u._id='{_id}' AND r.role='{orole}'
+	'''.format(_id=_id, orole=orole)).fetchall()
+
+	if len(assignments) > 0:
+		return jsonify(dict(status='error', msg='this role has already been assigned'))
+
+	user = dbo.sess.query(User).filter_by(_id=_id).one()
+	role = dbo.sess.query(Role).filter_by(role=orole).one()
+
+	ur = UserRole()
+	ur.user_id=user.id
+	ur.role_id=role.id
+	dbo.sess.add(ur)
+	dbo.sess.commit()
+	return jsonify(dict(status='role of {role} successfully assgned to {_id}'.format(role=orole, _id=_id)))
 
 '''
 Remove Role from a User
 '''
-@ori.route("/remove_role/<role_id>", methods=['POST'])
+@ori.route("/remove_role/<_id>/<role>", methods=['POST'])
 @cross_origin()
-def remove_role(role_id):
-	return jsonify(dict(status='success'))
+def remove_role(_id, role):
+	user = dbo.sess.query(User).filter_by(_id=_id).one()
+	role = dbo.sess.query(Role).filter_by(role=role).one()
+	dbo.engine.execute('''
+		DELETE FROM users_roles 
+		WHERE user_id = '{uid}' AND role_id='{rid}' AND id > 1
+	'''.format(uid=user.id, rid=role.id))
+	return jsonify(dict(status='deleted'))
 
 '''
-Remove all User Roles
+Remove all Roles for a particular User
 '''
 @ori.route("/remove_all_user_roles/<_id>", methods=['POST'])
 @cross_origin()
 def remove_all_user_roles(_id):
-	return jsonify(dict(status='success'))
+	dbo.engine.execute('''
+		DELETE FROM users_roles 
+		WHERE user_id = '{uid}' AND id > 1
+	'''.format(uid=user.id))
+	return jsonify(dict(status='deleted'))
+
+'''
+Flush all User Roles
+'''
+@ori.route("/flush_user_roles/", methods=['POST'])
+@cross_origin()
+def flush_user_roles(_id):
+	dbo.engine.execute('''
+		DELETE FROM users_roles 
+		WHERE id > 1
+	''')
+	return jsonify(dict(status='deleted'))	
 
 
 '''
@@ -179,14 +221,14 @@ def remove_module(module_id):
 def flush_modules():
 	return jsonify(dict(status='success'))
 
-@ori.route("/add_role_privilege/<module_id>/<role_id>/<permission>", methods=['POST'])
+@ori.route("/add_role_privileges/<module_id>/<role_id>/<permission>", methods=['POST'])
 @cross_origin()
-def add_role_privilege(module_id, role_id, permission):
+def add_role_privileges(module_id, role_id, permission):
 	return jsonify(dict(status='success'))
 
-@ori.route("/add_user_privilege/<module_id>/<_id>/<permission>", methods=['POST'])
+@ori.route("/add_user_privileges/<module_id>/<_id>/<permission>", methods=['POST'])
 @cross_origin()
-def add_user_privilege(module_id, _id, permission):
+def add_user_privileges(module_id, _id, permission):
 	return jsonify(dict(status='success'))
 
 @ori.route("/flush_role_privileges/<module_id>/<role_id>", methods=['POST'])
