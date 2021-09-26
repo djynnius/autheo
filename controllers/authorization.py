@@ -157,7 +157,7 @@ def assign_role(_id, orole):
 '''
 Remove Role from a User
 '''
-@ori.route("/remove_role/<_id>/<role>", methods=['POST'])
+@ori.route("/remove_role_from_user/<_id>/<role>", methods=['POST'])
 @cross_origin()
 def remove_role(_id, role):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
@@ -171,9 +171,10 @@ def remove_role(_id, role):
 '''
 Remove all Roles for a particular User
 '''
-@ori.route("/remove_all_user_roles/<_id>", methods=['POST'])
+@ori.route("/remove_all_roles_from_user/<_id>", methods=['POST'])
 @cross_origin()
 def remove_all_user_roles(_id):
+	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	dbo.engine.execute('''
 		DELETE FROM users_roles 
 		WHERE user_id = '{uid}' AND id > 1
@@ -183,14 +184,14 @@ def remove_all_user_roles(_id):
 '''
 Flush all User Roles
 '''
-@ori.route("/flush_user_roles/", methods=['POST'])
+@ori.route("/flush_user_roles", methods=['POST'])
 @cross_origin()
-def flush_user_roles(_id):
+def flush_user_roles():
 	dbo.engine.execute('''
 		DELETE FROM users_roles 
 		WHERE id > 1
 	''')
-	return jsonify(dict(status='deleted'))	
+	return jsonify(dict(status='user roles flushed'))	
 
 
 '''
@@ -201,34 +202,150 @@ MODULES
 '''
 Register a module
 '''
-@ori.route("/register_module/<module>", methods=['POST'])
+@ori.route("/register_module/<name>/<description>", methods=['POST'])
 @cross_origin()
-def register_module(module):
-	return jsonify(dict(status='success'))
+def register_module(name, description=''):
 
+	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', name) == None:
+		return jsonify(dict(status='error', msg='the module includes illegal characters'))	
+
+	if re.search(r'([a-zA-Z0-9 ]+)([a-zA-Z0-9_. -]+)', description) == None:
+		return jsonify(dict(status='error', msg='the description includes illegal characters'))	
+
+	module = Module()
+	module.module = name.strip().replace(' ', '_')
+	module.description = description.strip()
+	
+	try:
+		dbo.sess.add(module)
+		dbo.sess.commit()
+		return jsonify(dict(status='module successfully added'))
+	except:
+		dbo.sess.rollback()
+		return jsonify(dict(status='error', msg='the module already exists'))
+
+'''
+Register multiple modules using aruments in url string 
+http://autheo.io/register_modules?1=News&2=Articles&3=Blog
+Does not include description
+'''
 @ori.route("/register_modules", methods=['POST'])
 @cross_origin()
 def register_modules():
-	return jsonify(dict(status='success'))
+	modules = [a.strip().replace(' ', '_') for i,a in req.args.items()]
+	status = 'success'
+	successful = []
+	failed = []
 
-@ori.route("/remove_module/<module_id>", methods=['POST'])
+	for module in modules:
+		if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', module) == None:
+			return jsonify(dict(status='error', msg='one or more modules includes illegal characters'))		
+
+		item = Module()
+		item.module = module
+
+		try:
+			dbo.sess.add(item)
+			dbo.sess.commit()
+			successful.append(module)
+		except:
+			dbo.sess.rollback()
+			failed.append(module)
+			status = 'error'
+
+	return jsonify(dict(status='completed', success=successful, failed=failed))
+
+'''
+Remove a module
+'''
+@ori.route("/remove_module/<module>", methods=['POST'])
 @cross_origin()
-def remove_module(module_id):
-	return jsonify(dict(status='success'))
+def remove_module(module):
+	try:
+		imodule = dbo.sess.query(Module).filter_by(module=module).one()
+		dbo.sess.delete(imodule)
+		dbo.sess.commit()
+	except:
+		dbo.sess.rollback()
 
+	return jsonify(dict(status='{} successfully removed'.format(module.capitalize())))
+
+'''
+Removes all modules at once!
+'''
 @ori.route("/flush_modules", methods=['POST'])
 @cross_origin()
 def flush_modules():
-	return jsonify(dict(status='success'))
+	dbo.engine.execute('''
+		DELETE FROM modules
+	''')
+	return jsonify(dict(status='All modules successfully removed'))
 
-@ori.route("/add_role_privileges/<module_id>/<role_id>/<permission>", methods=['POST'])
+'''
+View all modules
+'''
+@ori.route("/get_modules", methods=['POST'])
 @cross_origin()
-def add_role_privileges(module_id, role_id, permission):
-	return jsonify(dict(status='success'))
+def get_modules():
+	modules = [dict(module=module.module, id=module.id, description=module.description) for module in dbo.sess.query(Module).all()]
+	return jsonify(dict(status='success', modules=modules))
 
-@ori.route("/add_user_privileges/<module_id>/<_id>/<permission>", methods=['POST'])
+'''
+Add priviledges to a module for a role so everyone with that role inherits those permissions
+The Unix standard is used
+0 = no permission, 
+1 = Basic eg read only
+2 = Edit/Write priviledged without read priviledges
+3 = Read and Write access
+4 = Highest single priviledge eg Execute, Delete
+5 = Read and Execute/Delete
+6 = Write and Execute/Delete but not Read
+7 = Full priviledges ie Read Edit/Write and Execute/Delete
+'''
+
+@ori.route("/set_role_privileges/<module>/<role>/<permission>", methods=['POST'])
 @cross_origin()
-def add_user_privileges(module_id, _id, permission):
+def set_role_privileges(module, role, permission):
+	module = module.strip().lower()
+	role = role.strip().lower()
+	
+	mrs = dbo.engine.execute('''
+		SELECT mr.id, mr.module_id, mr.role_id
+		FROM modules_roles AS mr 
+			LEFT JOIN modules AS m ON mr.module_id=m.id 
+			LEFT JOIN roles AS r ON mr.role_id=r.id
+		WHERE m.module='{module}' AND r.role='{role}'
+	'''.format(module=module, role=role)).fetchall()
+
+	try:
+		omodule = dbo.sess.query(Module).filter_by(module=module).one()
+		orole = dbo.sess.query(Role).filter_by(role=role).one()
+
+		if len(mrs) == 0:
+			mr = ModuleRole()
+			mr.module_id = omodule.id
+			mr.role_id = orole.id
+			mr.permission = permission
+			dbo.sess.add(mr)
+		elif len(mrs) == 1:
+			mr = ModuleRole(id=mrs[0].id)
+			mr.module_id = omodule.id
+			mr.role_id = orole.id
+			mr.permission = permission			
+		else:
+			return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
+
+		dbo.sess.commit()
+
+	except:
+		dbo.sess.rollback()
+		return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
+
+	return jsonify(dict(status='success', msg='permissions updated'))
+
+@ori.route("/set_user_privileges/<module_id>/<_id>/<permission>", methods=['POST'])
+@cross_origin()
+def set_user_privileges(module_id, _id, permission):
 	return jsonify(dict(status='success'))
 
 @ori.route("/flush_role_privileges/<module_id>/<role_id>", methods=['POST'])

@@ -7,6 +7,10 @@ Built with Flask, SQLAlchemy, PyJWT, Waitress
 #BASH
 cd autheo/models
 python3 dbo.py #instantiates database
+mv autheo.py ../dbs/ #optional if configured to use SQLite3
+
+cd .. #return to home directory
+python3 autheo.py #start the flask app
 
 ```
 
