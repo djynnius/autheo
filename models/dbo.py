@@ -32,7 +32,7 @@ class DBO():
 class User(Base):
 	__tablename__ = 'users'
 	id = Column(Integer, primary_key=True)
-	_id = Column(Text, unique=True)
+	_id = Column(Text, unique=True, nullable=False)
 	username = Column(String(32))
 	email = Column(String(50))
 	password = Column(Text)

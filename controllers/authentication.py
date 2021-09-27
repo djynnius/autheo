@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request as req
 from flask_cors import cross_origin
 from sqlalchemy import or_, and_, not_
+from sqlalchemy.orm import Session
 import re
 import jwt
 import bcrypt
@@ -30,12 +31,12 @@ def signup():
 		return jsonify(dict(status='error', message='no username or email'))
 
 	#remove whitespace from edges of form inputs
-	username = req.form.get('username', 'none').strip()
-	email = req.form.get('email', 'none').strip()
-	password = req.form.get('password', 'none').strip()
+	username = req.form.get('username', None)
+	email = req.form.get('email', None)
+	password = req.form.get('password', None)
 
 	#username validator
-	if username != 'none':
+	if username != None:
 		#username must be at least 8 characters in length and 
 		if len(username) < 8:
 			return jsonify(dict(status='error', message='username is less than 8 characters long'))
@@ -44,12 +45,12 @@ def signup():
 			return jsonify(dict(status='error', message='username can only contain numbers and letters, underscore and dot. username cannot start with a number, underscore or dor nor can it end with a dot or underscore'))
 
 	#email validator
-	if email != 'none':
+	if email != None:
 		#username must be at least 8 characters in length and 
 		if re.search(r'^([a-zA-Z]+)([a-zA-Z0-9_.]+)([a-zA-Z0-9]+)@([a-zA-Z]+).([a-zA-Z.]{2,5})$', email) == None:
 			return jsonify(dict(status='error', message='this is not a valid email'))
 
-	if password != 'none':
+	if password != None:
 		#username must be at least 8 characters in length and 
 		if len(password) < 8:
 			return jsonify(dict(status='error', message='password is less than 8 characters long'))
@@ -58,11 +59,11 @@ def signup():
 			return jsonify(dict(status='error', message='password must contain lowercase, uppercase, number and special character'))
 
 	#convert username and email to all lowercase since not case sensitive
-	username = username.lower()
-	email = email.lower()
+	username = username
+	email = email
 
 	#check if the user exists
-	people = dbo.engine.execute("SELECT id FROM users WHERE username='{user}' OR email='{email}'".format(user=username, email=email)).fetchall()
+	people = dbo.engine.execute("SELECT id FROM users WHERE (username='{user}' AND username IS NOT NULL) OR (email='{email}' AND email IS NOT NULL)".format(user=username, email=email)).fetchall()
 	if len(people) > 0:
 		return jsonify(dict(status='error', message='a user with these credentials already exists'))
 
@@ -76,21 +77,22 @@ def signup():
 	dbo.sess.add(user)
 	dbo.sess.commit()
 
-	#set a unique identifier hash
-	person = dbo.engine.execute(
-		'''	SELECT * 
-			FROM users 
-			WHERE username='{user}' OR email='{email}'
-		'''.format(user=username, email=email)
-	).fetchone()
+	with Session(dbo.engine) as sess:
+		#set a unique identifier hash
+		person = dbo.engine.execute(
+			'''	SELECT * 
+				FROM users 
+				WHERE username='{user}' OR email='{email}'
+			'''.format(user=username, email=email)
+		).fetchone()
 
-	user = dbo.sess.query(User).filter_by(id=person.id).one()
-	#create hash version of id
-	_id = hashlib.md5("{uid}_{uat}".format(uid=person.id, uat=person.created_at).encode()).hexdigest()
-	user._id = _id
-	dbo.sess.commit()
+		user = sess.query(User).filter_by(id=person.id).one()
+		#create hash version of id
+		_id = hashlib.md5("{uid}_{uat}".format(uid=person.id, uat=person.created_at).encode()).hexdigest()
+		user._id = _id
+		sess.commit()
 
-	return jsonify(dict(status='user created', _id=_id))
+		return jsonify(dict(status='user created', _id=_id))
 
 '''
 Authenticate with username or password
@@ -99,13 +101,13 @@ Authenticate with username or password
 @cross_origin()
 def login():
 	#clean login credentials - strip whitespace and convert to lowercase
-	username = req.form.get('username', 'none').lower().strip()
-	email = req.form.get('email', 'none').lower().strip()
+	username = req.form.get('username', None)
+	email = req.form.get('email', None)
 	
 	#check if user exists in DB
 	try:
-		user = dbo.sess.query(User).filter(and_(or_(User.username==username, User.email==email), User.email !='none')).one()
-		password = req.form.get('password', 'none').strip()
+		user = dbo.sess.query(User).filter(and_(or_(User.username==username, User.email==email), User.email !=None)).one()
+		password = req.form.get('password', None)
 
 		#check if password matches
 		if bcrypt.checkpw(password.encode(), user.password):
@@ -249,7 +251,7 @@ def update_password(_id):
 	if 'password' not in keys:
 		return jsonify(dict(status='error', msg='no password'))
 
-	password = req.form.get('password', 'none').strip()
+	password = req.form.get('password', None).strip()
 
 	#username must be at least 8 characters in length and 
 	if len(password) < 8:

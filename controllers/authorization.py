@@ -14,10 +14,10 @@ Create a new role
 @ori.route("/create_role", methods=['POST'])
 @cross_origin()
 def create_role():
-	role=req.form.get('role', 'none')
+	role=req.form.get('role', None)
 	description=req.form.get('description', '')
 
-	if role == 'none':
+	if role == None:
 		return jsonify(dict(status='error', msg='there is no row name'))
 
 	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', role) == None:
@@ -74,11 +74,11 @@ Update an existing user defined role
 @ori.route("/update_role/<orole>", methods=['POST'])
 @cross_origin()
 def update_role(orole):
-	role=req.args.get('role', 'none')
+	role=req.args.get('role', None)
 	description=req.args.get('description', '')
 
 	#check if role name is set
-	if role == 'none':
+	if role == None:
 		return jsonify(dict(status='error', msg='there is no row name in your request'))
 
 	#ensure role is alphanumeric with underscores allowed only
