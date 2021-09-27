@@ -11,11 +11,9 @@ dbo = DBO(sqlite_path)
 '''
 Create a new role
 '''
-@ori.route("/create_role", methods=['POST'])
+@ori.route("/create_role/<role>/<description>", methods=['POST'])
 @cross_origin()
-def create_role():
-	role=req.form.get('role', None)
-	description=req.form.get('description', '')
+def create_role(role, description):
 
 	if role == None:
 		return jsonify(dict(status='error', msg='there is no row name'))
@@ -146,7 +144,7 @@ def assign_role(_id, orole):
 		FROM users_roles AS ur 
 		LEFT JOIN users AS u ON ur.user_id=u.id 
 		LEFT JOIN roles AS r ON ur.role_id=r.id
-		WHERE u._id='{_id}' AND r.role='{orole}'
+		WHERE u._id='{_id}' AND LOWER(r.role)='{orole}'
 	'''.format(_id=_id, orole=orole)).fetchall()
 
 	#if assignment exists
@@ -154,16 +152,19 @@ def assign_role(_id, orole):
 		return jsonify(dict(status='error', msg='this role has already been assigned'))
 
 	#continue if assignment is not set yet
-	user = dbo.sess.query(User).filter_by(_id=_id).one()
-	role = dbo.sess.query(Role).filter_by(role=orole).one()
+	with dbo.sess as sess:
+		user = sess.query(User).filter_by(_id=_id).one()
+		role = dbo.engine.execute("SELECT * FROM roles WHERE LOWER(role)='{role}'".format(role=orole)).fetchone()
 
-	#instantiate user_role
-	ur = UserRole()
-	ur.user_id=user.id
-	ur.role_id=role.id
-	dbo.sess.add(ur)
-	dbo.sess.commit()
-	return jsonify(dict(status='role of {role} successfully assgned to {_id}'.format(role=orole, _id=_id)))
+		#instantiate user_role
+		ur = UserRole()
+		ur.user_id=user.id
+		ur.role_id=role.id
+		sess.add(ur)
+		sess.commit()
+		return jsonify(dict(status='role of {role} successfully assgned to {_id}'.format(role=orole, _id=_id)))
+
+	return jsonify(dict(status='error', msg='unknown'))
 
 '''
 Remove Role from a User

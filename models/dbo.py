@@ -85,27 +85,22 @@ if __name__ == '__main__':
 
 	#Create Admin role
 	admin = Role()
-	admin.role = 'Admin'
+	admin.role = 'administrator'
 	admin.description = 'The system administrator and superuser'
 
 	#Create Registered Role
 	registered = Role()
-	registered.role = 'Registered User'
+	registered.role = 'registered'
 	registered.description = 'Registered user with login privileges'
 
 	#Create Anonymous role for visitors
 	anon = Role()
-	anon.role = 'Anonymous'
+	anon.role = 'anonymous'
 	anon.description = 'Anonymous login with no privileges'
 
 	#Add all roles
 	dbo.sess.add_all([admin, registered, anon])
 
-	#Set admin role for the first user that will be created
-	admin_role = UserRole()
-	admin_role.user_id = 1
-	admin_role.role_id = 1
-	dbo.sess.add(admin_role)
 
 	#Commit all changes
 	dbo.sess.commit()

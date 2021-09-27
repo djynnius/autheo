@@ -90,6 +90,20 @@ def signup():
 		#create hash version of id
 		_id = hashlib.md5("{uid}_{uat}".format(uid=person.id, uat=person.created_at).encode()).hexdigest()
 		user._id = _id
+
+		#if first user make admin
+		if user.id == 1:
+			admin = UserRole()
+			admin.user_id = 1
+			admin.role_id = 1
+			sess.add(admin)
+
+		#add all signed up people into the registered role
+		ur = UserRole()
+		ur.role_id = 2
+		ur.user_id = user.id
+		sess.add(ur)
+
 		sess.commit()
 
 		return jsonify(dict(status='user created', _id=_id))
@@ -124,6 +138,27 @@ def login():
 			'''.format(user_id=user.id)).fetchall()
 			roles = [role.role for role in roles]
 
+			#get permissions
+			permissions = dbo.engine.execute('''
+				SELECT m.module, mr.permissions 
+				FROM users AS u 
+					LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
+					LEFT JOIN roles AS r ON ur.role_id=r.id 
+					LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
+					LEFT JOIN modules AS m ON mr.module_id=m.id 
+				WHERE u.id='{uid}' AND m.module IS NOT NULL
+				GROUP BY m.module, mr.permissions 
+				UNION 
+				SELECT m.module, mu.permissions 
+				FROM users AS u 
+					LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
+					LEFT JOIN modules AS m ON mu.module_id=m.id
+				WHERE u.id='{uid}' AND m.module IS NOT NULL
+				GROUP BY m.module, mu.permissions 
+			'''.format(uid=user.id)
+			).fetchall()
+			permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
+
 			#get previous login before setting current login to now
 			last_login = user.last_login if user.last_login != user.created_at else datetime(1, 1, 1, 1, 1, 1)
 			user.last_login = datetime.now()
@@ -140,6 +175,7 @@ def login():
 					since=user.created_at, 
 					last_login = last_login, 
 					roles = roles, 
+					permissions = permissions,
 					token = user.token, 
 					status = 'authenticated'
 				)
@@ -197,12 +233,48 @@ Get details for a particular user
 def get_user(_id):
 	try:
 		user = dbo.sess.query(User).filter_by(_id=_id).one()
+
+		#get roles
+		roles = dbo.engine.execute('''
+			SELECT 
+				r.role 
+				,r.id 
+			FROM roles AS r 
+			LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
+			LEFT JOIN users AS u ON ur.user_id=u.id 
+			WHERE u.id='{user_id}' 
+		'''.format(user_id=user.id)).fetchall()
+		roles = [role.role for role in roles]
+
+		#get permissions
+		permissions = dbo.engine.execute('''
+			SELECT m.module, mr.permissions 
+			FROM users AS u 
+				LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
+				LEFT JOIN roles AS r ON ur.role_id=r.id 
+				LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
+				LEFT JOIN modules AS m ON mr.module_id=m.id 
+			WHERE u.id='{uid}' AND m.module IS NOT NULL
+			GROUP BY m.module, mr.permissions 
+			UNION 
+			SELECT m.module, mu.permissions 
+			FROM users AS u 
+				LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
+				LEFT JOIN modules AS m ON mu.module_id=m.id
+			WHERE u.id='{uid}' AND m.module IS NOT NULL
+			GROUP BY m.module, mu.permissions 
+		'''.format(uid=user.id)
+		).fetchall()
+		permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
+
 		return jsonify(dict(
 			status='success', 
 			_id=user._id,
 			username=user.username, 
 			email=user.email, 
-			since=user.created_at, 
+			since=user.created_at,
+			roles = roles,
+			permissions = permissions, 
 			last_login=user.last_login, 
 			loggedin='yes' if user.status == True else 'no',
 			verified='yes' if user.verified == True else 'no'
