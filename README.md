@@ -5,12 +5,18 @@ Built with Flask, SQLAlchemy, PyJWT, Waitress
 ## For first setup
 ```bash
 #BASH
-cd autheo/models
-python3 dbo.py #instantiates database
-mv autheo.py ../dbs/ #optional if configured to use SQLite3
 
-cd .. #return to home directory
-python3 autheo.py #start the flask app
+#setting up the virtual environment
+cd autheo
+python3 -m venv env
+source env/bin/activate
+pip install --upgrade-pip
+pip install -r requirements.txt --user
+
+#if you need to setup DB other than the autheo.db SQLite instance
+#edit the config in autheo/models/dbo.py
+#then run ``python dbo.py`` to instantiate DB before proceeding
+
 
 ```
 
