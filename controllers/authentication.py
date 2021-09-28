@@ -209,7 +209,7 @@ Admin Methods
 '''
 Get all users
 '''
-@ent.route('/get_users', methods=['POST'])
+@ent.route('/get_users', methods=['POST', 'GET'])
 @cross_origin()
 def get_users():
 	users = [ dict(

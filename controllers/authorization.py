@@ -42,9 +42,9 @@ def create_role(role, description):
 '''
 Get all roles
 '''
-@ori.route("/get_roles", methods=['POST'])
+@ori.route("/get_all_roles", methods=['POST'])
 @cross_origin()
-def get_roles():
+def get_all_roles():
 	roles = [dict(id=role.id, role=role.role, description=role.description) for role in dbo.sess.query(Role).all()]	
 	return jsonify(dict(status='success', roles=roles))
 
