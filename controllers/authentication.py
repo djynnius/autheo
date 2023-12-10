@@ -4,8 +4,8 @@ from sqlalchemy import or_, and_, not_
 from sqlalchemy.orm import Session
 import re
 import jwt
-import bcrypt
-import hashlib
+from bcrypt import hashpw, checkpw, gensalt
+from hashlib import md5
 from datetime import datetime, timedelta
 from models.dbo import *
 
@@ -31,9 +31,9 @@ def signup():
 		return jsonify(dict(status='error', message='no username or email'))
 
 	#remove whitespace from edges of form inputs
-	username = req.form.get('username', None)
-	email = req.form.get('email', None)
-	password = req.form.get('password', None)
+	username = req.form.get('username', None).strip()
+	email = req.form.get('email', None).strip()
+	password = req.form.get('password', None).strip()
 
 	#username validator
 	if username != None:
@@ -59,11 +59,11 @@ def signup():
 			return jsonify(dict(status='error', message='password must contain lowercase, uppercase, number and special character'))
 
 	#convert username and email to all lowercase since not case sensitive
-	username = username
-	email = email
+	username = username.lower()
+	email = email.lower()
 
 	#check if the user exists
-	people = dbo.engine.execute("SELECT id FROM users WHERE (username='{user}' AND username IS NOT NULL) OR (email='{email}' AND email IS NOT NULL)".format(user=username, email=email)).fetchall()
+	people = dbo.engine.execute(f"SELECT id FROM users WHERE (username='{username}' AND username IS NOT NULL) OR (email='{email}' AND email IS NOT NULL)").fetchall()
 	if len(people) > 0:
 		return jsonify(dict(status='error', message='a user with these credentials already exists'))
 
@@ -71,8 +71,8 @@ def signup():
 	user = User()
 	user.username = username
 	user.email = email
-	user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()) #encrypt password
-	user.secret = bcrypt.hashpw(str(datetime.now()).encode(), bcrypt.gensalt())[2:32] #make user unique secret for JWT
+	user.password = hashpw(password.encode(), gensalt()) #encrypt password
+	user.secret = hashpw(str(datetime.now()).encode(), gensalt())[2:32] #make user unique secret for JWT
 	user.token = init_token(user) #set initial JWT token which is already expired
 	dbo.sess.add(user)
 	dbo.sess.commit()
@@ -80,15 +80,15 @@ def signup():
 	with Session(dbo.engine) as sess:
 		#set a unique identifier hash
 		person = dbo.engine.execute(
-			'''	SELECT * 
+			f'''	SELECT * 
 				FROM users 
-				WHERE username='{user}' OR email='{email}'
-			'''.format(user=username, email=email)
+				WHERE username='{username}' OR email='{email}'
+			'''
 		).fetchone()
 
 		user = sess.query(User).filter_by(id=person.id).one()
 		#create hash version of id
-		_id = hashlib.md5("{uid}_{uat}".format(uid=person.id, uat=person.created_at).encode()).hexdigest()
+		_id = md5(f"{person.id}_{person.created_at}".encode()).hexdigest()
 		user._id = _id
 
 		#if first user make admin
@@ -115,8 +115,8 @@ Authenticate with username or password
 @cross_origin()
 def login():
 	#clean login credentials - strip whitespace and convert to lowercase
-	username = req.form.get('username', None)
-	email = req.form.get('email', None)
+	username = req.form.get('username', None).strip().lower()
+	email = req.form.get('email', None).strip().lower()
 	
 	#check if user exists in DB
 	try:
@@ -124,38 +124,38 @@ def login():
 		password = req.form.get('password', None)
 
 		#check if password matches
-		if bcrypt.checkpw(password.encode(), user.password):
+		if checkpw(password.encode(), user.password):
 
 			#get roles
-			roles = dbo.engine.execute('''
+			roles = dbo.engine.execute(f'''
 				SELECT 
 					r.role 
 					,r.id 
 				FROM roles AS r 
 				LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
 				LEFT JOIN users AS u ON ur.user_id=u.id 
-				WHERE u.id='{user_id}' 
-			'''.format(user_id=user.id)).fetchall()
+				WHERE u.id='{user.id}' 
+			''').fetchall()
 			roles = [role.role for role in roles]
 
 			#get permissions
-			permissions = dbo.engine.execute('''
+			permissions = dbo.engine.execute(f'''
 				SELECT m.module, mr.permissions 
 				FROM users AS u 
 					LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
 					LEFT JOIN roles AS r ON ur.role_id=r.id 
 					LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
 					LEFT JOIN modules AS m ON mr.module_id=m.id 
-				WHERE u.id='{uid}' AND m.module IS NOT NULL
+				WHERE u.id='{user.id}' AND m.module IS NOT NULL
 				GROUP BY m.module, mr.permissions 
 				UNION 
 				SELECT m.module, mu.permissions 
 				FROM users AS u 
 					LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
 					LEFT JOIN modules AS m ON mu.module_id=m.id
-				WHERE u.id='{uid}' AND m.module IS NOT NULL
+				WHERE u.id='{user.id}' AND m.module IS NOT NULL
 				GROUP BY m.module, mu.permissions 
-			'''.format(uid=user.id)
+			'''
 			).fetchall()
 			permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
 
@@ -235,35 +235,35 @@ def get_user(_id):
 		user = dbo.sess.query(User).filter_by(_id=_id).one()
 
 		#get roles
-		roles = dbo.engine.execute('''
+		roles = dbo.engine.execute(f'''
 			SELECT 
 				r.role 
 				,r.id 
 			FROM roles AS r 
 			LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
 			LEFT JOIN users AS u ON ur.user_id=u.id 
-			WHERE u.id='{user_id}' 
-		'''.format(user_id=user.id)).fetchall()
+			WHERE u.id='{user.id}' 
+		''').fetchall()
 		roles = [role.role for role in roles]
 
 		#get permissions
-		permissions = dbo.engine.execute('''
+		permissions = dbo.engine.execute(f'''
 			SELECT m.module, mr.permissions 
 			FROM users AS u 
 				LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
 				LEFT JOIN roles AS r ON ur.role_id=r.id 
 				LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
 				LEFT JOIN modules AS m ON mr.module_id=m.id 
-			WHERE u.id='{uid}' AND m.module IS NOT NULL
+			WHERE u.id='{user.id}' AND m.module IS NOT NULL
 			GROUP BY m.module, mr.permissions 
 			UNION 
 			SELECT m.module, mu.permissions 
 			FROM users AS u 
 				LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
 				LEFT JOIN modules AS m ON mu.module_id=m.id
-			WHERE u.id='{uid}' AND m.module IS NOT NULL
+			WHERE u.id='{user.id}' AND m.module IS NOT NULL
 			GROUP BY m.module, mu.permissions 
-		'''.format(uid=user.id)
+		'''
 		).fetchall()
 		permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
 
@@ -336,10 +336,10 @@ def reset_password(_id):
 	#instantiate user
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	_id = user._id
-	user.password = bcrypt.hashpw(password.encode(), bcrypt.gensalt()) #encrypt and reset password
+	user.password = hashpw(password.encode(), gensalt()) #encrypt and reset password
 	dbo.sess.commit()
 
-	return jsonify(dict(status='success', msg='password for {_id} successfully updated'.format(_id=_id)))
+	return jsonify(dict(status='success', msg=f'password for {_id} successfully updated'))
 
 
 '''
@@ -352,7 +352,7 @@ def verify(_id):
 	user.verify = True
 	_id = user._id
 	dbo.sess.commit()
-	return jsonify(dict(status='success', msg='user {_id} was successfully verified'.format(_id=_id)))
+	return jsonify(dict(status='success', msg=f'user {_id} was successfully verified'))
 
 '''
 Helper methods are below this comment
