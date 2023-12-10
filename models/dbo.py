@@ -12,8 +12,7 @@ from sqlalchemy import (
 	ForeignKey
 )
 
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from urllib import parse
 from datetime import datetime
 
@@ -32,7 +31,7 @@ class DBO():
 class User(Base):
 	__tablename__ = 'users'
 	id = Column(Integer, primary_key=True)
-	_id = Column(Text, unique=True, nullable=False)
+	_id = Column(Text, unique=True)
 	username = Column(String(32))
 	email = Column(String(50))
 	password = Column(Text)
