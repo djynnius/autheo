@@ -202,16 +202,17 @@ View all modules
 fetch(`https://myautheoserver.io/ori/get_modules`, {method: 'POST'})
 ```
 
-Add priviledges to a module for a role so everyone with that role inherits those permissions
+##### Add priviledges to a module for a role so everyone with that role inherits those permissions
 The Unix standard is used
-0 = no permission, 
-1 = Basic eg read only
-2 = Edit/Write priviledged without read priviledges
-3 = Read and Write access
-4 = Highest single priviledge eg Execute, Delete
-5 = Read and Execute/Delete
-6 = Write and Execute/Delete but not Read
-7 = Full priviledges ie Read Edit/Write and Execute/Delete
+- 0 = no permission, 
+- 1 = Basic eg read only
+- 2 = Edit/Write priviledged without read priviledges
+- 3 = Read and Write access
+- 4 = Highest single priviledge eg Execute, Delete
+- 5 = Read and Execute/Delete
+- 6 = Write and Execute/Delete but not Read
+- 7 = Full priviledges ie Read Edit/Write and Execute/Delete
+
 ```javascript
 //set read and execute
 fetch(`https://myautheoserver.io/ori/set_role_permissions/news/accountant/5`, {method: 'POST'})
