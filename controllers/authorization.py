@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request as req
 from flask_cors import cross_origin
 import re
 from models.dbo import *
+from sqlalchemy import text
 
 
 ori = Blueprint('ori', __name__, url_prefix='/ori')
@@ -55,15 +56,16 @@ Get all roles for a user
 @ori.route("/get_roles/<user_id>", methods=['POST'])
 @cross_origin()
 def get_user_roles(user_id):
-	roles = dbo.engine.execute(f'''
-		SELECT r.id, r.role 
-		FROM roles AS r 
-		LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
-		LEFT JOIN users AS u ON ur.user_id=u.id 
-		WHERE u._id='{_id}'
-	''').fetchall()
-	roles = [dict(id=role.id, role=role.role) for role in roles]	
-	return jsonify(dict(status='success', roles=roles))
+	with dbo.engine.connect() as con:
+		roles = con.execute(text(f'''
+			SELECT r.id, r.role 
+			FROM roles AS r 
+			LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
+			LEFT JOIN users AS u ON ur.user_id=u.id 
+			WHERE u._id='{_id}'
+		''')).fetchall()
+		roles = [dict(id=role.id, role=role.role) for role in roles]	
+		return jsonify(dict(status='success', roles=roles))
 
 
 '''
@@ -139,13 +141,14 @@ Assign Role to a User
 def assign_role(_id, orole):
 
 	#check if the assignment exists or not
-	assignments = dbo.engine.execute(f'''
-		SELECT ur.id 
-		FROM users_roles AS ur 
-		LEFT JOIN users AS u ON ur.user_id=u.id 
-		LEFT JOIN roles AS r ON ur.role_id=r.id
-		WHERE u._id='{_id}' AND LOWER(r.role)='{orole}'
-	''').fetchall()
+	with dbo.engine.connect() as con:
+		assignments = con.execute(text(f'''
+			SELECT ur.id 
+			FROM users_roles AS ur 
+			LEFT JOIN users AS u ON ur.user_id=u.id 
+			LEFT JOIN roles AS r ON ur.role_id=r.id
+			WHERE u._id='{_id}' AND LOWER(r.role)='{orole}'
+		''')).fetchall()
 
 	#if assignment exists
 	if len(assignments) > 0:
@@ -154,7 +157,8 @@ def assign_role(_id, orole):
 	#continue if assignment is not set yet
 	with dbo.sess as sess:
 		user = sess.query(User).filter_by(_id=_id).one()
-		role = dbo.engine.execute(f"SELECT * FROM roles WHERE LOWER(role)='{orole}'").fetchone()
+		with dbo.engine.connect() as con:
+			role = con.execute(text(f"SELECT * FROM roles WHERE LOWER(role)='{orole}'")).fetchone()
 
 		#instantiate user_role
 		ur = UserRole()
@@ -174,11 +178,12 @@ Remove Role from a User
 def remove_role(_id, role):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	role = dbo.sess.query(Role).filter_by(role=role).one()
-	dbo.engine.execute(f'''
-		DELETE FROM users_roles 
-		WHERE user_id = '{user.id}' AND role_id='{role.id}' AND id > 1
-	''')
-	return jsonify(dict(status='deleted'))
+	with dbo.engine.connect() as con:
+		con.execute(text(f'''
+			DELETE FROM users_roles 
+			WHERE user_id = '{user.id}' AND role_id='{role.id}' AND id > 1
+		'''))
+		return jsonify(dict(status='deleted'))
 
 '''
 Remove all Roles for a particular User
@@ -187,11 +192,12 @@ Remove all Roles for a particular User
 @cross_origin()
 def remove_all_user_roles(_id):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
-	dbo.engine.execute(f'''
-		DELETE FROM users_roles 
-		WHERE user_id = '{user.id}' AND id > 1
-	''')
-	return jsonify(dict(status='deleted'))
+	with dbo.engine.connect() as con:
+		con.execute(text(f'''
+			DELETE FROM users_roles 
+			WHERE user_id = '{user.id}' AND id > 1
+		'''))
+		return jsonify(dict(status='deleted'))
 
 '''
 Flush all User Roles
@@ -199,11 +205,12 @@ Flush all User Roles
 @ori.route("/flush_user_roles", methods=['POST'])
 @cross_origin()
 def flush_user_roles():
-	dbo.engine.execute('''
-		DELETE FROM users_roles 
-		WHERE id > 1
-	''')
-	return jsonify(dict(status='user roles flushed'))	
+	with dbo.engine.connect() as con:
+		con.execute(text('''
+			DELETE FROM users_roles 
+			WHERE id > 1
+		'''))
+		return jsonify(dict(status='user roles flushed'))	
 
 
 '''
@@ -291,10 +298,11 @@ Removes all modules at once!
 @ori.route("/flush_modules", methods=['POST'])
 @cross_origin()
 def flush_modules():
-	dbo.engine.execute('''
-		DELETE FROM modules
-	''')
-	return jsonify(dict(status='All modules successfully removed'))
+	with dbo.engine.connect() as con:
+		con.execute(text('''
+			DELETE FROM modules
+		'''))
+		return jsonify(dict(status='All modules successfully removed'))
 
 '''
 View all modules
@@ -324,30 +332,32 @@ def set_role_permissions(module, role, permission):
 	role = role.strip().lower()
 	permission = int(permission)
 	
-	mrs = dbo.engine.execute(f'''
-		SELECT mr.id, mr.module_id, mr.role_id
-		FROM modules_roles AS mr 
-			LEFT JOIN modules AS m ON mr.module_id=m.id 
-			LEFT JOIN roles AS r ON mr.role_id=r.id
-		WHERE LOWER(m.module)='{module}' AND LOWER(r.role)='{role}'
-	''').fetchall()
+	with dbo.engine.connect() as con:
+		mrs = con.execute(text(f'''
+			SELECT mr.id, mr.module_id, mr.role_id
+			FROM modules_roles AS mr 
+				LEFT JOIN modules AS m ON mr.module_id=m.id 
+				LEFT JOIN roles AS r ON mr.role_id=r.id
+			WHERE LOWER(m.module)='{module}' AND LOWER(r.role)='{role}'
+		''')).fetchall()
 
 	try:
-		omodule = dbo.engine.execute(f"SELECT * FROM modules WHERE LOWER(module)='{module}'").fetchone()
-		orole = dbo.sess.query(Role).filter_by(role=role).one()
-		if len(mrs) == 0:
-			mr = ModuleRole()
-			mr.module_id = omodule.id
-			mr.role_id = orole.id
-			mr.permissions = permission
-			dbo.sess.add(mr)
-		elif len(mrs) == 1:
-			mr = ModuleRole(id=mrs[0].id)
-			mr.module_id = omodule.id
-			mr.role_id = orole.id
-			mr.permissions = permission			
-		else:
-			return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
+		with dbo.engine.connect() as con:
+			omodule = con.execute(text(f"SELECT * FROM modules WHERE LOWER(module)='{module}'")).fetchone()
+			orole = dbo.sess.query(Role).filter_by(role=role).one()
+			if len(mrs) == 0:
+				mr = ModuleRole()
+				mr.module_id = omodule.id
+				mr.role_id = orole.id
+				mr.permissions = permission
+				dbo.sess.add(mr)
+			elif len(mrs) == 1:
+				mr = ModuleRole(id=mrs[0].id)
+				mr.module_id = omodule.id
+				mr.role_id = orole.id
+				mr.permissions = permission			
+			else:
+				return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module role'))
 
 		dbo.sess.commit()
 		return jsonify(dict(status='success', msg='permissions updated'))
@@ -367,30 +377,32 @@ def set_user_permissions(module_id, _id, permission):
 	module = module.strip().lower()
 	permission = int(permission)
 	
-	mus = dbo.engine.execute(f'''
-		SELECT mu.id, mu.module_id, mu.user_id
-		FROM modules_users AS mu 
-			LEFT JOIN modules AS m ON mu.module_id=m.id 
-			LEFT JOIN users AS u ON mu.user_id=u.id
-		WHERE LOWER(m.module)='{module}' AND u._id='{_id}'
-	''').fetchall()
+	with dbo.engine.connect() as con:
+		mus = con.execute(text(f'''
+			SELECT mu.id, mu.module_id, mu.user_id
+			FROM modules_users AS mu 
+				LEFT JOIN modules AS m ON mu.module_id=m.id 
+				LEFT JOIN users AS u ON mu.user_id=u.id
+			WHERE LOWER(m.module)='{module}' AND u._id='{_id}'
+		''')).fetchall()
 
 	try:
-		omodule = dbo.engine.execute(f"SELECT * FROM modules WHERE LOWER(module)='{module}'").fetchone()
-		ouser = dbo.sess.query(User).filter_by(_id=_id).one()
-		if len(mus) == 0:
-			mu = ModuleUser()
-			mu.module_id = omodule.id
-			mu.user_id = ouser.id
-			mu.permissions = permission
-			dbo.sess.add(mu)
-		elif len(mus) == 1:
-			mu = ModuleUser(id=mrs[0].id)
-			mu.module_id = omodule.id
-			mu.user_id = ouser.id
-			mu.permissions = permission			
-		else:
-			return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module user'))
+		with dbo.engine.connect() as con:
+			omodule = con.execute(text(f"SELECT * FROM modules WHERE LOWER(module)='{module}'")).fetchone()
+			ouser = dbo.sess.query(User).filter_by(_id=_id).one()
+			if len(mus) == 0:
+				mu = ModuleUser()
+				mu.module_id = omodule.id
+				mu.user_id = ouser.id
+				mu.permissions = permission
+				dbo.sess.add(mu)
+			elif len(mus) == 1:
+				mu = ModuleUser(id=mrs[0].id)
+				mu.module_id = omodule.id
+				mu.user_id = ouser.id
+				mu.permissions = permission			
+			else:
+				return jsonify(dict(status='error', msg='unknown: possibly multiple instances of module user'))
 
 		dbo.sess.commit()
 		return jsonify(dict(status='success', msg='permissions updated'))
@@ -407,11 +419,12 @@ Remove all role permissions for a particular module
 @ori.route("/remove_role_permissions/<module>", methods=['POST'])
 @cross_origin()
 def remove_role_permissions(module):
-	module = dbo.engine.execute(f"SELECT * FROM modules WHERE LOWER(module)='{module}'").fetchone()
-	dbo.engine.execute(f'''
-		DELETE FROM modules_roles WHERE module_id='{module.id}'
-	''')	
-	return jsonify(dict(status='success'))
+	with dbo.engine.connect() as con:
+		module = con.execute(text(f"SELECT * FROM modules WHERE LOWER(module)='{module}'")).fetchone()
+		con.execute(text(f'''
+			DELETE FROM modules_roles WHERE module_id='{module.id}'
+		'''))	
+		return jsonify(dict(status='success'))
 
 '''
 Remove all permissions in the modules_roles table
@@ -419,10 +432,11 @@ Remove all permissions in the modules_roles table
 @ori.route("/flush_role_permissions", methods=['POST'])
 @cross_origin()
 def flush_role_permissions():
-	dbo.engine.execute('''
-		DELETE FROM modules_roles
-	''')	
-	return jsonify(dict(status='success'))
+	with dbo.engine.connect() as con:
+		con.execute(text('''
+			DELETE FROM modules_roles
+		'''))	
+		return jsonify(dict(status='success'))
 
 '''
 Remove user permissions for a particular module
@@ -430,11 +444,12 @@ Remove user permissions for a particular module
 @ori.route("/remove_user_permissions/<module>", methods=['POST'])
 @cross_origin()
 def remove_user_permissions(module):
-	module = dbo.engine.execute(f"SELECT * FROM modules WHERE LOWER(module)='{module}'").fetchone()
-	dbo.engine.execute(f'''
-		DELETE FROM modules_users WHERE module_id='{module.id}'
-	''')	
-	return jsonify(dict(status='success'))
+	with dbo.engine.connect() as con:
+		module = con.execute(text(f"SELECT * FROM modules WHERE LOWER(module)='{module}'")).fetchone()
+		con.execute(text(f'''
+			DELETE FROM modules_users WHERE module_id='{module.id}'
+		'''))	
+		return jsonify(dict(status='success'))
 
 '''
 Remove all permissions in the modules_users table
@@ -442,7 +457,8 @@ Remove all permissions in the modules_users table
 @ori.route("/flush_user_permissions", methods=['POST'])
 @cross_origin()
 def flush_user_permissions():
-	dbo.engine.execute('''
-		DELETE FROM modules_users
-	''')	
-	return jsonify(dict(status='success'))
+	with dbo.engine.connect() as con:
+		con.execute(text('''
+			DELETE FROM modules_users
+		'''))	
+		return jsonify(dict(status='success'))
