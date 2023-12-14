@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request as req
 from flask_cors import cross_origin
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import text, or_, and_, not_
 from sqlalchemy.orm import Session
 import re
 import jwt
@@ -31,12 +31,15 @@ def signup():
 		return jsonify(dict(status='error', message='no username or email'))
 
 	#remove whitespace from edges of form inputs
-	username = req.form.get('username', None).strip()
-	email = req.form.get('email', None).strip()
-	password = req.form.get('password', None).strip()
+	username = req.form.get('username', '').strip()
+	email = req.form.get('email', '').strip()
+	password = req.form.get('password', '').strip()
+
+	if username == '' and email == '':
+		return jsonify(dict(status='error', message='You must add at least one of email or username'))
 
 	#username validator
-	if username != None:
+	if username != '':
 		#username must be at least 8 characters in length and 
 		if len(username) < 8:
 			return jsonify(dict(status='error', message='username is less than 8 characters long'))
@@ -45,12 +48,12 @@ def signup():
 			return jsonify(dict(status='error', message='username can only contain numbers and letters, underscore and dot. username cannot start with a number, underscore or dor nor can it end with a dot or underscore'))
 
 	#email validator
-	if email != None:
+	if email != '':
 		#username must be at least 8 characters in length and 
 		if re.search(r'^([a-zA-Z]+)([a-zA-Z0-9_.]+)([a-zA-Z0-9]+)@([a-zA-Z]+).([a-zA-Z.]{2,5})$', email) == None:
 			return jsonify(dict(status='error', message='this is not a valid email'))
 
-	if password != None:
+	if password != '':
 		#username must be at least 8 characters in length and 
 		if len(password) < 8:
 			return jsonify(dict(status='error', message='password is less than 8 characters long'))
@@ -63,14 +66,17 @@ def signup():
 	email = email.lower()
 
 	#check if the user exists
-	people = dbo.engine.execute(f"SELECT id FROM users WHERE (username='{username}' AND username IS NOT NULL) OR (email='{email}' AND email IS NOT NULL)").fetchall()
-	if len(people) > 0:
-		return jsonify(dict(status='error', message='a user with these credentials already exists'))
+	with dbo.engine.connect() as con:
+		people = con.execute(text(f"SELECT id FROM users WHERE (username='{username}' AND username IS NOT NULL) OR (email='{email}' AND email IS NOT NULL)")).fetchall()
+		if len(people) > 0:
+			return jsonify(dict(status='error', message='a user with these credentials already exists'))
+	
 
 	#instantiate user object
+
 	user = User()
-	user.username = username
-	user.email = email
+	if username != '': user.username = username
+	if email != '': user.email = email
 	user.password = hashpw(password.encode(), gensalt()) #encrypt password
 	user.secret = hashpw(str(datetime.now()).encode(), gensalt())[2:32] #make user unique secret for JWT
 	user.token = init_token(user) #set initial JWT token which is already expired
@@ -79,12 +85,13 @@ def signup():
 
 	with Session(dbo.engine) as sess:
 		#set a unique identifier hash
-		person = dbo.engine.execute(
-			f'''	SELECT * 
-				FROM users 
-				WHERE username='{username}' OR email='{email}'
-			'''
-		).fetchone()
+		with dbo.engine.connect() as con:
+			person = con.execute(
+				text(f'''	SELECT * 
+					FROM users 
+					WHERE username='{username}' OR email='{email}'
+				''')
+			).fetchone()
 
 		user = sess.query(User).filter_by(id=person.id).one()
 		#create hash version of id
@@ -127,37 +134,39 @@ def login():
 		if checkpw(password.encode(), user.password):
 
 			#get roles
-			roles = dbo.engine.execute(f'''
-				SELECT 
-					r.role 
-					,r.id 
-				FROM roles AS r 
-				LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
-				LEFT JOIN users AS u ON ur.user_id=u.id 
-				WHERE u.id='{user.id}' 
-			''').fetchall()
-			roles = [role.role for role in roles]
+			with dbo.engine.connect() as con:
+				roles = con.execute(text(f'''
+					SELECT 
+						r.role 
+						,r.id 
+					FROM roles AS r 
+					LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
+					LEFT JOIN users AS u ON ur.user_id=u.id 
+					WHERE u.id='{user.id}' 
+				''')).fetchall()
+				roles = [role.role for role in roles]
 
 			#get permissions
-			permissions = dbo.engine.execute(f'''
-				SELECT m.module, mr.permissions 
-				FROM users AS u 
-					LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
-					LEFT JOIN roles AS r ON ur.role_id=r.id 
-					LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
-					LEFT JOIN modules AS m ON mr.module_id=m.id 
-				WHERE u.id='{user.id}' AND m.module IS NOT NULL
-				GROUP BY m.module, mr.permissions 
-				UNION 
-				SELECT m.module, mu.permissions 
-				FROM users AS u 
-					LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
-					LEFT JOIN modules AS m ON mu.module_id=m.id
-				WHERE u.id='{user.id}' AND m.module IS NOT NULL
-				GROUP BY m.module, mu.permissions 
-			'''
-			).fetchall()
-			permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
+			with dbo.engine.connect() as con:
+				permissions = con.execute(text(f'''
+					SELECT m.module, mr.permissions 
+					FROM users AS u 
+						LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
+						LEFT JOIN roles AS r ON ur.role_id=r.id 
+						LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
+						LEFT JOIN modules AS m ON mr.module_id=m.id 
+					WHERE u.id='{user.id}' AND m.module IS NOT NULL
+					GROUP BY m.module, mr.permissions 
+					UNION 
+					SELECT m.module, mu.permissions 
+					FROM users AS u 
+						LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
+						LEFT JOIN modules AS m ON mu.module_id=m.id
+					WHERE u.id='{user.id}' AND m.module IS NOT NULL
+					GROUP BY m.module, mu.permissions 
+				''')
+				).fetchall()
+				permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
 
 			#get previous login before setting current login to now
 			last_login = user.last_login if user.last_login != user.created_at else datetime(1, 1, 1, 1, 1, 1)
@@ -235,37 +244,39 @@ def get_user(_id):
 		user = dbo.sess.query(User).filter_by(_id=_id).one()
 
 		#get roles
-		roles = dbo.engine.execute(f'''
-			SELECT 
-				r.role 
-				,r.id 
-			FROM roles AS r 
-			LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
-			LEFT JOIN users AS u ON ur.user_id=u.id 
-			WHERE u.id='{user.id}' 
-		''').fetchall()
-		roles = [role.role for role in roles]
+		with dbo.engine.connect() as con:
+			roles = con.execute(text(f'''
+				SELECT 
+					r.role 
+					,r.id 
+				FROM roles AS r 
+				LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
+				LEFT JOIN users AS u ON ur.user_id=u.id 
+				WHERE u.id='{user.id}' 
+			''')).fetchall()
+			roles = [role.role for role in roles]
 
 		#get permissions
-		permissions = dbo.engine.execute(f'''
-			SELECT m.module, mr.permissions 
-			FROM users AS u 
-				LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
-				LEFT JOIN roles AS r ON ur.role_id=r.id 
-				LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
-				LEFT JOIN modules AS m ON mr.module_id=m.id 
-			WHERE u.id='{user.id}' AND m.module IS NOT NULL
-			GROUP BY m.module, mr.permissions 
-			UNION 
-			SELECT m.module, mu.permissions 
-			FROM users AS u 
-				LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
-				LEFT JOIN modules AS m ON mu.module_id=m.id
-			WHERE u.id='{user.id}' AND m.module IS NOT NULL
-			GROUP BY m.module, mu.permissions 
-		'''
-		).fetchall()
-		permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
+		with dbo.engine.connect() as con:
+			permissions = dbo.execute(text(f'''
+				SELECT m.module, mr.permissions 
+				FROM users AS u 
+					LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
+					LEFT JOIN roles AS r ON ur.role_id=r.id 
+					LEFT JOIN modules_roles AS mr ON r.id=mr.role_id 
+					LEFT JOIN modules AS m ON mr.module_id=m.id 
+				WHERE u.id='{user.id}' AND m.module IS NOT NULL
+				GROUP BY m.module, mr.permissions 
+				UNION 
+				SELECT m.module, mu.permissions 
+				FROM users AS u 
+					LEFT JOIN modules_users AS mu ON u.id=mu.user_id 
+					LEFT JOIN modules AS m ON mu.module_id=m.id
+				WHERE u.id='{user.id}' AND m.module IS NOT NULL
+				GROUP BY m.module, mu.permissions 
+			''')
+			).fetchall()
+			permissions = [dict(module=p.module, permissions=p.permissions) for p in permissions]
 
 		return jsonify(dict(
 			status='success', 
@@ -308,8 +319,9 @@ DELETE all users
 @ent.route('/flush_users', methods=['DELETE'])
 @cross_origin()
 def flush_users():
-	dbo.engine.execute("DELETE FROM users WHERE id > 1") #delete all except super user
-	return jsonify(dict(status='success', msg='all users have been successfully deleted'))
+	with dbo.engine.connect() as con:
+		con.execute(text("DELETE FROM users WHERE id > 1")) #delete all except super user
+		return jsonify(dict(status='success', msg='all users have been successfully deleted'))
 
 '''
 Update a users password
