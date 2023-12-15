@@ -326,7 +326,7 @@ def flush_users():
 '''
 Update a users password
 '''
-@ent.route("/reset_password/_id", methods=['PUT'])
+@ent.route("/reset_password/<_id>", methods=['PUT'])
 @cross_origin()
 def reset_password(_id):
 	keys = [item for item in req.form]
