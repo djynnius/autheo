@@ -17,7 +17,17 @@ pip install -r requirements.txt --user
 #edit the config in autheo/models/dbo.py
 #then run ``python dbo.py`` to instantiate DB before proceeding
 
+#autheo also runs out the box on port 8800.
+#You can modify as you deem fit
 
+```
+
+To start the server
+```bash
+python autheo.py
+
+#if you test the url 0.0.0.0:8800 you should get a message
+#autheo is alive!
 ```
 
 The rest involves calling APIs

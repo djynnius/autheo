@@ -53,9 +53,9 @@ def get_all_roles():
 '''
 Get all roles for a user
 '''
-@ori.route("/get_roles/<user_id>", methods=['POST'])
+@ori.route("/get_roles/<_id>", methods=['POST'])
 @cross_origin()
-def get_user_roles(user_id):
+def get_user_roles(_id):
 	with dbo.engine.connect() as con:
 		roles = con.execute(text(f'''
 			SELECT r.id, r.role 
