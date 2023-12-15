@@ -30,6 +30,17 @@ python autheo.py
 #autheo is alive!
 ```
 
+## For a fast setup you can download the docker image 
+```bash
+doker pull djynnius/autheo
+```
+
+after downloading
+
+```bash
+docker run --name autheo -p 8800:8800 -it djynnius/autheo
+```
+
 The rest involves calling APIs
 
 ### Signing up with JavaScript
