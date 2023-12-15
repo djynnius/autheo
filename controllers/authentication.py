@@ -357,7 +357,7 @@ def reset_password(_id):
 '''
 Verify a user account example by phone or email
 '''
-@ent.route("/verify/<_id>")
+@ent.route("/verify/<_id>", methods=['PUT'])
 @cross_origin()
 def verify(_id):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()

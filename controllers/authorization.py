@@ -79,7 +79,7 @@ def update_role(orole):
 
 	#check if role name is set
 	if role == None:
-		return jsonify(dict(status='error', msg='there is no row name in your request'))
+		return jsonify(dict(status='error', msg='there is no role name in your request'))
 
 	#ensure role is alphanumeric with underscores allowed only
 	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', role) == None:
@@ -116,7 +116,7 @@ def update_role(orole):
 '''
 Delete existing user defined role
 '''
-@ori.route("/delete_role/<role>", methods=['POST'])
+@ori.route("/delete_role/<role>", methods=['DELETE'])
 @cross_origin()
 def delete_role(role):
 	#check if the role exists

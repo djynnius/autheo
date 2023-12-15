@@ -135,7 +135,7 @@ fetch(`https://myautheoserver.io/ent/reset_password/c68f463cx0d7f823df95y8c50943
 
 Verify a user account example by phone or email
 ```javascript
-fetch(`https://myautheoserver.io/ent/verify/c68f463cx0d7f823df95y8c50943e651`)
+fetch(`https://myautheoserver.io/ent/verify/c68f463cx0d7f823df95y8c50943e651`, {method:'PUT'})
 ```
 
 ### Authorization
@@ -162,7 +162,7 @@ fetch(`https://myautheoserver.io/ori/update_role/accountant?role=finance_manager
 
 Delete existing user defined role
 ```javascript
-fetch(`https://myautheoserver.io/ori/delete_role/accountant`, {method: 'POST'})
+fetch(`https://myautheoserver.io/ori/delete_role/accountant`, {method: 'DELETE'})
 ```
 
 Assign Role to a User
