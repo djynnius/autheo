@@ -122,13 +122,13 @@ Authenticate with username or password
 @cross_origin()
 def login():
 	#clean login credentials - strip whitespace and convert to lowercase
-	username = req.form.get('username', None).strip().lower()
-	email = req.form.get('email', None).strip().lower()
+	username = req.form.get('username', '').strip().lower()
+	email = req.form.get('email', '').strip().lower()
 	
 	#check if user exists in DB
 	try:
 		user = dbo.sess.query(User).filter(and_(or_(User.username==username, User.email==email), User.email !=None)).one()
-		password = req.form.get('password', None)
+		password = req.form.get('password', '')
 
 		#check if password matches
 		if checkpw(password.encode(), user.password):
