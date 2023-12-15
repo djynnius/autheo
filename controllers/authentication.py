@@ -258,7 +258,7 @@ def get_user(_id):
 
 		#get permissions
 		with dbo.engine.connect() as con:
-			permissions = dbo.execute(text(f'''
+			permissions = con.execute(text(f'''
 				SELECT m.module, mr.permissions 
 				FROM users AS u 
 					LEFT JOIN users_roles AS ur ON u.id=ur.user_id 
