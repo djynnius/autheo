@@ -361,7 +361,7 @@ Verify a user account example by phone or email
 @cross_origin()
 def verify(_id):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
-	user.verify = True
+	user.verified = True
 	_id = user._id
 	dbo.sess.commit()
 	return jsonify(dict(status='success', msg=f'user {_id} was successfully verified'))
