@@ -17,7 +17,7 @@ Create a new role
 def create_role(role, description):
 
 	if role == None:
-		return jsonify(dict(status='error', msg='there is no row name'))
+		return jsonify(dict(status='error', msg='there is no role name'))
 
 	if re.search(r'([a-zA-Z]+)([a-zA-Z0-9_]+)', role) == None:
 		return jsonify(dict(status='error', msg='the role includes illegal characters'))	
@@ -56,16 +56,12 @@ Get all roles for a user
 @ori.route("/get_roles/<_id>", methods=['POST'])
 @cross_origin()
 def get_user_roles(_id):
-	with dbo.engine.connect() as con:
-		roles = con.execute(text(f'''
-			SELECT r.id, r.role 
-			FROM roles AS r 
-			LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
-			LEFT JOIN users AS u ON ur.user_id=u.id 
-			WHERE u._id='{_id}'
-		''')).fetchall()
-		roles = [dict(id=role.id, role=role.role) for role in roles]	
+	try:
+		user = dbo.sess.query(User).filter_by(_id=_id).one()
+		roles = [dict(id=role.id, role=role.role) for role in user.roles]	
 		return jsonify(dict(status='success', roles=roles))
+	except:
+		return jsonify(dict(status='error', msg="Something went wrong"))
 
 
 '''
@@ -140,50 +136,34 @@ Assign Role to a User
 @cross_origin()
 def assign_role(_id, orole):
 
-	#check if the assignment exists or not
-	with dbo.engine.connect() as con:
-		assignments = con.execute(text(f'''
-			SELECT ur.id 
-			FROM users_roles AS ur 
-			LEFT JOIN users AS u ON ur.user_id=u.id 
-			LEFT JOIN roles AS r ON ur.role_id=r.id
-			WHERE u._id='{_id}' AND LOWER(r.role)='{orole}'
-		''')).fetchall()
+	try:
+		role = dbo.sess.query(Role).filter_by(role=orole).all()
+		if len(role) == 0:
+			return jsonify(dict(status='error', msg='this role does not exist'))
 
-	#if assignment exists
-	if len(assignments) > 0:
-		return jsonify(dict(status='error', msg='this role has already been assigned'))
+		user = dbo.sess.query(User).filter_by(_id=_id).one()
+		if orole in [_.role for _ in user.roles]:
+			return jsonify(dict(status='error', msg='this role has already been assigned'))
 
-	#continue if assignment is not set yet
-	with dbo.sess as sess:
-		user = sess.query(User).filter_by(_id=_id).one()
-		with dbo.engine.connect() as con:
-			role = con.execute(text(f"SELECT * FROM roles WHERE LOWER(role)='{orole}'")).fetchone()
-
-		#instantiate user_role
-		ur = UserRole()
-		ur.user_id=user.id
-		ur.role_id=role.id
-		sess.add(ur)
-		sess.commit()
+		#continue if assignment is not set yet
+		role = dbo.sess.query(Role).filter_by(role=orole).one()
+		user.roles.append(role)
+		dbo.sess.commit()
 		return jsonify(dict(status=f'role of {orole} successfully assgned to {_id}'))
-
-	return jsonify(dict(status='error', msg='unknown'))
+	except Exception as e:
+		return jsonify(dict(status='error', msg=f'unknown. the user may not exist {e}'))
 
 '''
 Remove Role from a User
 '''
-@ori.route("/remove_role_from_user/<_id>/<role>", methods=['POST'])
+@ori.route("/remove_role_from_user/<_id>/<role>", methods=['DELETE'])
 @cross_origin()
 def remove_role(_id, role):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	role = dbo.sess.query(Role).filter_by(role=role).one()
-	with dbo.engine.connect() as con:
-		con.execute(text(f'''
-			DELETE FROM users_roles 
-			WHERE user_id = '{user.id}' AND role_id='{role.id}' AND id > 1
-		'''))
-		return jsonify(dict(status='deleted'))
+	user.roles.remove(role)
+	dbo.sess.commit()
+	return jsonify(dict(status='deleted'))
 
 '''
 Remove all Roles for a particular User
@@ -192,12 +172,10 @@ Remove all Roles for a particular User
 @cross_origin()
 def remove_all_user_roles(_id):
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
-	with dbo.engine.connect() as con:
-		con.execute(text(f'''
-			DELETE FROM users_roles 
-			WHERE user_id = '{user.id}' AND id > 1
-		'''))
-		return jsonify(dict(status='deleted'))
+	if user.id != 1:
+		user.roles = []
+		dbo.sess.commit()
+	return jsonify(dict(status='deleted'))
 
 '''
 Flush all User Roles

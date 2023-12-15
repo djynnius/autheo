@@ -12,7 +12,7 @@ from sqlalchemy import (
 	ForeignKey
 )
 
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from urllib import parse
 from datetime import datetime
 
@@ -28,6 +28,30 @@ class DBO():
 		session = sessionmaker(bind=self.engine)
 		self.sess = session()
 
+UserRole = Table(
+	'users_roles', 
+	Base.metadata, 
+	Column('user_id', Integer, ForeignKey('users.id')), 
+	Column('role_id', Integer, ForeignKey('roles.id'))
+)
+
+ModuleUser = Table(
+	'modules_users', 
+	Base.metadata,
+	Column('module_id', Integer, ForeignKey('modules.id')),
+	Column('user_id', Integer, ForeignKey('users.id')),
+	Column('permissions', Integer) #use Unix convention read=1, write=2, execute=4
+)
+
+ModuleRole = Table(
+	'modules_roles', 
+	Base.metadata, 
+	Column('module_id', Integer, ForeignKey('modules.id')),
+	Column('role_id', Integer, ForeignKey('roles.id')),
+	Column('permissions', Integer) #use Unix convention read=1, write=2, execute=4
+)
+
+
 class User(Base):
 	__tablename__ = 'users'
 	id = Column(Integer, primary_key=True)
@@ -41,38 +65,33 @@ class User(Base):
 	secret = Column(Text)
 	token = Column(Text)
 	verified = Column(Boolean, default=False)
+	roles = relationship('Role', secondary=UserRole, back_populates='users')
+	modules = relationship('Module', secondary=ModuleUser, back_populates='users')
+
+	def __repr__(self):
+		return f"{self.username} <{self.email}>"
 
 class Role(Base):
 	__tablename__ = 'roles'
 	id = Column(Integer, primary_key=True)
 	role = Column(String(75), unique=True)
 	description = Column(Text)
+	users = relationship('User', secondary=UserRole, back_populates='roles')
+	modules = relationship('Module', secondary=ModuleRole, back_populates='roles')
 
-class UserRole(Base):
-	__tablename__ = 'users_roles'
-	id = Column(Integer, primary_key=True)
-	user_id = Column(Integer, ForeignKey('users.id'))
-	role_id = Column(Integer, ForeignKey('roles.id'))
+	def __repr__(self):
+		return f"{self.role}"
 
 class Module(Base):
 	__tablename__ = 'modules'
 	id = Column(Integer, primary_key=True)
 	module = Column(String(75), unique=True)
 	description = Column(Text)
+	users = relationship('User', secondary=ModuleUser, back_populates='modules')
+	roles = relationship('Role', secondary=ModuleRole, back_populates='modules')
 
-class ModuleRole(Base):
-	__tablename__ = 'modules_roles'
-	id = Column(Integer, primary_key=True)
-	module_id = Column(Integer, ForeignKey('modules.id'))
-	role_id = Column(Integer, ForeignKey('roles.id'))
-	permissions = Column(Integer) #use Unix convention read=1, write=2, execute=4
-
-class ModuleUser(Base):
-	__tablename__ = 'modules_users'
-	id = Column(Integer, primary_key=True)
-	module_id = Column(Integer, ForeignKey('modules.id'))
-	user_id = Column(Integer, ForeignKey('roles.id'))
-	permissions = Column(Integer) #use Unix convention read=1, write=2, execute=4
+	def __repr__(self):
+		return f"{self.module}"
 
 
 #onetime initialization

@@ -191,7 +191,7 @@ fetch(`https://myautheoserver.io/ori/assign_role/c68f463cx0d7f823df95y8c50943e65
 
 Remove Role from a User
 ```javascript
-fetch(`https://myautheoserver.io/ori/remove_role_from_user/c68f463cx0d7f823df95y8c50943e651/accountant`, {method: 'POST'})
+fetch(`https://myautheoserver.io/ori/remove_role_from_user/c68f463cx0d7f823df95y8c50943e651/accountant`, {method: 'DELETE'})
 ```
 
 Remove all Roles for a particular User

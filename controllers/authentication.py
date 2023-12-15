@@ -100,17 +100,12 @@ def signup():
 
 		#if first user make admin
 		if user.id == 1:
-			admin = UserRole()
-			admin.user_id = 1
-			admin.role_id = 1
-			sess.add(admin)
+			admin = sess.query(Role).filter_by(id=1).one()
+			user.roles.append(admin)
 
 		#add all signed up people into the registered role
-		ur = UserRole()
-		ur.role_id = 2
-		ur.user_id = user.id
-		sess.add(ur)
-
+		registered = sess.query(Role).filter_by(id=2).one()
+		user.roles.append(registered)
 		sess.commit()
 
 		return jsonify(dict(status='user created', _id=_id))
@@ -134,17 +129,7 @@ def login():
 		if checkpw(password.encode(), user.password):
 
 			#get roles
-			with dbo.engine.connect() as con:
-				roles = con.execute(text(f'''
-					SELECT 
-						r.role 
-						,r.id 
-					FROM roles AS r 
-					LEFT JOIN users_roles AS ur ON r.id=ur.role_id 
-					LEFT JOIN users AS u ON ur.user_id=u.id 
-					WHERE u.id='{user.id}' 
-				''')).fetchall()
-				roles = [role.role for role in roles]
+			roles = [_.role for _ in user.roles]
 
 			#get permissions
 			with dbo.engine.connect() as con:
@@ -290,7 +275,7 @@ def get_user(_id):
 			loggedin='yes' if user.status == True else 'no',
 			verified='yes' if user.verified == True else 'no'
 		))
-	except:
+	except Exception as e:
 		return jsonify(dict(status='error', msg='the user was not found'))
 
 '''
