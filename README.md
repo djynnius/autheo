@@ -32,7 +32,7 @@ python autheo.py
 
 ## For a fast setup you can download the docker image 
 ```bash
-doker pull djynnius/autheo
+docker pull djynnius/autheo
 ```
 
 after downloading
