@@ -41,6 +41,13 @@ after downloading
 docker run --name autheo -p 8800:8800 -it djynnius/autheo
 ```
 
+go to your browser and navigate to http://127.0.0.1:8800
+you should see a message:
+
+```
+autheo is alive!
+```
+
 The rest involves calling APIs
 
 ### Signing up with JavaScript
