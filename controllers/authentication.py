@@ -120,9 +120,13 @@ def login():
 	username = req.form.get('username', '').strip().lower()
 	email = req.form.get('email', '').strip().lower()
 	
+	if username == '' and email == '':
+		return jsonify(dict(msg='no handle was provided', status='error'))
+	
 	#check if user exists in DB
+	
 	try:
-		user = dbo.sess.query(User).filter(and_(or_(User.username==username, User.email==email), User.email !=None)).one()
+		user = dbo.sess.query(User).filter_by(username = username).one() if email == '' else dbo.sess.query(User).filter_by(email = email).one()
 		password = req.form.get('password', '')
 
 		#check if password matches
@@ -176,7 +180,7 @@ def login():
 			)
 		else:
 			return jsonify(dict(msg='authentication failed', status='error'))	
-	except:
+	except Exception as e:
 		return jsonify(dict(msg='user does not exist', status='error'))
 
 '''
