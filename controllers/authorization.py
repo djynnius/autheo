@@ -51,6 +51,15 @@ def get_all_roles():
 
 
 '''
+Get users with a role
+'''
+@ori.route("/get_users_for_role/<role>", methods=['POST'])
+@cross_origin()
+def get_users_for_role(role):
+    users = [[dict(_id=y._id, username=y.username, email=y.email) for y in x.users] for x in dbo.sess.query(Role).filter_by(role=role).all()]
+    return jsonify(dict(status='success', users=users[0]))
+
+'''
 Get all roles for a user
 '''
 @ori.route("/get_roles/<_id>", methods=['POST'])
