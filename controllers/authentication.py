@@ -80,35 +80,20 @@ def signup():
 	user.password = hashpw(password.encode(), gensalt()) #encrypt password
 	user.secret = hashpw(str(datetime.now()).encode(), gensalt())[2:32] #make user unique secret for JWT
 	user.token = init_token(user) #set initial JWT token which is already expired
+	
+	if user.id == 1:
+		admin = dbo.sess.query(Role).filter_by(id=1).one()
+		user.roles.append(admin)
+
+	registered = dbo.sess.query(Role).filter_by(id=2).one()
+	user.roles.append(registered)
+
 	dbo.sess.add(user)
+
 	dbo.sess.commit()
 
-	with Session(dbo.engine) as sess:
-		#set a unique identifier hash
-		with dbo.engine.connect() as con:
-			person = con.execute(
-				text(f'''	SELECT * 
-					FROM users 
-					WHERE username='{username}' OR email='{email}'
-				''')
-			).fetchone()
-
-		user = sess.query(User).filter_by(id=person.id).one()
-		#create hash version of id
-		_id = md5(f"{person.id}_{person.created_at}".encode()).hexdigest()
-		user._id = _id
-
-		#if first user make admin
-		if user.id == 1:
-			admin = sess.query(Role).filter_by(id=1).one()
-			user.roles.append(admin)
-
-		#add all signed up people into the registered role
-		registered = sess.query(Role).filter_by(id=2).one()
-		user.roles.append(registered)
-		sess.commit()
-
-		return jsonify(dict(status='user created', _id=_id))
+	return jsonify(dict(status='user created', _id=user._id))
+		
 
 '''
 Authenticate with username or password

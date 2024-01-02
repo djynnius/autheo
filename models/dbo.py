@@ -15,6 +15,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from urllib import parse
 from datetime import datetime
+from uuid import uuid4 as uuid
+from helpers import _email, _username, uuidhex
 
 Base = declarative_base()
 
@@ -55,9 +57,9 @@ ModuleRole = Table(
 class User(Base):
 	__tablename__ = 'users'
 	id = Column(Integer, primary_key=True)
-	_id = Column(Text, unique=True)
-	username = Column(String(32))
-	email = Column(String(50))
+	_id = Column(Text, unique=True, default=uuidhex)
+	username = Column(String(32), default=_username)
+	email = Column(String(50), default=_email)
 	password = Column(Text)
 	status = Column(Boolean, default=False)
 	created_at = Column(DateTime, default=datetime.now())
