@@ -77,7 +77,7 @@ def signup():
 	user = User()
 	if username != '': user.username = username
 	if email != '': user.email = email
-	user.password = hashpw(password.encode(), gensalt()) #encrypt password
+	user.password = hashpw(password.encode(), gensalt()).decode() #encrypt password
 	user.secret = hashpw(str(datetime.now()).encode(), gensalt())[2:32] #make user unique secret for JWT
 	user.token = init_token(user) #set initial JWT token which is already expired
 	
@@ -115,7 +115,7 @@ def login():
 		password = req.form.get('password', '')
 
 		#check if password matches
-		if checkpw(password.encode(), user.password):
+		if checkpw(password.encode(), user.password.encode()):
 
 			#get roles
 			roles = [_.role for _ in user.roles]
@@ -322,7 +322,7 @@ def reset_password(_id):
 	#instantiate user
 	user = dbo.sess.query(User).filter_by(_id=_id).one()
 	_id = user._id
-	user.password = hashpw(password.encode(), gensalt()) #encrypt and reset password
+	user.password = hashpw(password.encode(), gensalt()).decode() #encrypt and reset password
 	dbo.sess.commit()
 
 	return jsonify(dict(status='success', msg=f'password for {_id} successfully updated'))
