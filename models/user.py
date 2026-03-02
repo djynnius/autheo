@@ -27,6 +27,7 @@ class User(Base):
 
     roles = relationship('Role', secondary=user_roles, back_populates='users', lazy='selectin')
     module_permissions = relationship('ModuleUser', back_populates='user', lazy='selectin', cascade='all, delete-orphan')
+    oauth_accounts = relationship('OAuthAccount', back_populates='user', lazy='selectin', cascade='all, delete-orphan')
 
     def to_dict(self):
         return dict(

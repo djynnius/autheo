@@ -17,6 +17,15 @@ class Config:
     HOST = os.environ.get('AUTHEO_HOST', '0.0.0.0')
     DEBUG = os.environ.get('AUTHEO_DEBUG', 'true').lower() == 'true'
 
+    # OAuth provider credentials (provider is enabled when CLIENT_ID is non-empty)
+    GOOGLE_CLIENT_ID = os.environ.get('AUTHEO_GOOGLE_CLIENT_ID', '')
+    GOOGLE_CLIENT_SECRET = os.environ.get('AUTHEO_GOOGLE_CLIENT_SECRET', '')
+    GITHUB_CLIENT_ID = os.environ.get('AUTHEO_GITHUB_CLIENT_ID', '')
+    GITHUB_CLIENT_SECRET = os.environ.get('AUTHEO_GITHUB_CLIENT_SECRET', '')
+    DISCORD_CLIENT_ID = os.environ.get('AUTHEO_DISCORD_CLIENT_ID', '')
+    DISCORD_CLIENT_SECRET = os.environ.get('AUTHEO_DISCORD_CLIENT_SECRET', '')
+    OAUTH_REDIRECT_BASE = os.environ.get('AUTHEO_OAUTH_REDIRECT_BASE', 'http://localhost:8800')
+
     @property
     def DATABASE_URI(self):
         backend = self.DB_BACKEND.lower()

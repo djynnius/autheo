@@ -61,6 +61,9 @@ def login(session, username, email, password, jwt_expiry_days=7):
     if user is None:
         raise LookupError('user does not exist')
 
+    if user.password is None:
+        raise ValueError('this account uses OAuth login')
+
     if not checkpw(password.encode(), user.password.encode()):
         raise ValueError('authentication failed')
 

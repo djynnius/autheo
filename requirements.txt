@@ -2,6 +2,7 @@ bcrypt
 Flask>=2.3
 Flask-Cors
 PyJWT
+requests
 SQLAlchemy>=2.0
 python-dotenv
 waitress

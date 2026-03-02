@@ -234,6 +234,47 @@ Autheo uses Unix-style permission values (0-7):
 
 Permissions can be set at the role level (inherited by all users with that role) or the user level (specific to one user). When both exist, the higher permission value wins.
 
+### OAuth (`/ope`)
+
+OAuth login via Google, GitHub, and Discord. Enable a provider by setting its `CLIENT_ID` and `CLIENT_SECRET` environment variables.
+
+#### Setup
+
+```bash
+# In .env
+AUTHEO_GOOGLE_CLIENT_ID=your-google-client-id
+AUTHEO_GOOGLE_CLIENT_SECRET=your-google-client-secret
+AUTHEO_OAUTH_REDIRECT_BASE=http://localhost:8800
+```
+
+Set each provider's OAuth redirect URI to `{OAUTH_REDIRECT_BASE}/ope/callback/{provider}` (e.g. `http://localhost:8800/ope/callback/google`).
+
+#### Flow
+
+1. Client calls `GET /ope/login/google` and gets a 302 redirect to Google's consent screen
+2. User authorizes, Google redirects to `GET /ope/callback/google?code=...`
+3. Autheo exchanges the code for an access token, fetches the user profile, and returns a JWT
+
+On first OAuth login, a local user is auto-created (verified, no password). If the provider email matches an existing local user, the OAuth account is linked instead.
+
+#### Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/ope/providers` | List enabled OAuth providers |
+| GET | `/ope/login/<provider>` | Redirect to provider's authorization URL |
+| GET | `/ope/callback/<provider>?code=...` | Exchange code and return JWT |
+
+#### Example
+
+```bash
+# Check which providers are enabled
+curl http://localhost:8800/ope/providers
+
+# Start OAuth flow (returns 302)
+curl -v http://localhost:8800/ope/login/google
+```
+
 ## Migration from v2
 
 Key changes in v3:

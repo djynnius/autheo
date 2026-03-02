@@ -3,5 +3,6 @@ from models.associations import user_roles, ModuleUser, ModuleRole
 from models.user import User
 from models.role import Role
 from models.module import Module
+from models.oauth_account import OAuthAccount
 
-__all__ = ['Base', 'User', 'Role', 'Module', 'user_roles', 'ModuleUser', 'ModuleRole']
+__all__ = ['Base', 'User', 'Role', 'Module', 'user_roles', 'ModuleUser', 'ModuleRole', 'OAuthAccount']

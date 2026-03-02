@@ -17,8 +17,10 @@ def create_app(config=None):
 
     from controllers.authentication import ent
     from controllers.authorization import ori
+    from controllers.oauth import ope
     app.register_blueprint(ent)
     app.register_blueprint(ori)
+    app.register_blueprint(ope)
 
     @app.route('/')
     def index():
