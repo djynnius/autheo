@@ -1,24 +1,38 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
-from waitress import serve
-
-autheo = Flask(__name__)
-CORS(autheo)
-
-#import controllers
-from controllers.authentication import ent
-from controllers.authorization import ori
+from config import Config
+import responses
 
 
-#register controllers
-autheo.register_blueprint(ent)
-autheo.register_blueprint(ori)
+def create_app(config=None):
+    app = Flask(__name__)
+    CORS(app)
 
+    if config is None:
+        config = Config()
 
-@autheo.route('/')
-def index():
-	return jsonify(dict(status= 'autheo is alive!'))
+    from database import init_db, create_tables
+    init_db(app, config)
+    create_tables()
+
+    from controllers.authentication import ent
+    from controllers.authorization import ori
+    app.register_blueprint(ent)
+    app.register_blueprint(ori)
+
+    @app.route('/')
+    def index():
+        return responses.success('autheo v3 is alive!')
+
+    app.config['AUTHEO_CONFIG'] = config
+    return app
+
 
 if __name__ == '__main__':
-	autheo.run(port=8800, host='0.0.0.0', debug=True)
-	#serve(autheo, port=8800, host='0.0.0.0')
+    config = Config()
+    app = create_app(config)
+    if config.DEBUG:
+        app.run(port=config.PORT, host=config.HOST, debug=True)
+    else:
+        from waitress import serve
+        serve(app, port=config.PORT, host=config.HOST)

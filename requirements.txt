@@ -1,6 +1,16 @@
 bcrypt
-Flask
+Flask>=2.3
 Flask-Cors
 PyJWT
-SQLAlchemy
+SQLAlchemy>=2.0
+python-dotenv
 waitress
+
+# Testing
+pytest
+pytest-flask
+
+# Optional database drivers (uncomment as needed):
+# psycopg2-binary    # PostgreSQL
+# pymysql            # MySQL / MariaDB
+# duckdb-engine      # DuckDB

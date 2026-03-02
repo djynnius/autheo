@@ -1,1 +1,2 @@
-autheo.db
+*.db
+*.duckdb

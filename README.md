@@ -1,275 +1,245 @@
-# autheo
-A simple authentication and authorization system
-Built with Flask, SQLAlchemy, PyJWT, Waitress
+# Autheo v3
 
-## For first setup
+A developer-ready authentication and authorization scaffold built with Flask, SQLAlchemy, PyJWT, and bcrypt.
+
+## Features
+
+- **Multi-database support**: SQLite (default), PostgreSQL, MySQL, MariaDB, DuckDB
+- **JWT authentication**: Per-user secrets, configurable token expiry
+- **Role-based access control (RBAC)**: Assign roles to users, 3 built-in roles
+- **Unix-style permissions**: Module-level permissions (0-7) for roles and individual users
+- **Consistent API**: Standard JSON response envelope with proper HTTP status codes
+- **Services architecture**: Clean separation of HTTP handlers, business logic, and data access
+- **Test suite**: 84 tests covering authentication, authorization, and validation
+
+## Quick Start
+
 ```bash
-#BASH
-
-#setting up the virtual environment
+# Clone and setup
 cd autheo
 python3 -m venv env
 source env/bin/activate
-pip install --upgrade-pip
-pip install -r requirements.txt --user
+pip install -r requirements.txt
 
-#if you need to setup DB other than the autheo.db SQLite instance
-#edit the config in autheo/models/dbo.py
-#then run ``python dbo.py`` to instantiate DB before proceeding
+# Configure (optional - defaults to SQLite)
+cp .env.example .env
+# Edit .env as needed
 
-#autheo also runs out the box on port 8800.
-#You can modify as you deem fit
+# Initialize database and seed default roles
+python seed.py
 
-```
-
-To start the server
-```bash
+# Start the server
 python autheo.py
-
-#if you test the url 0.0.0.0:8800 you should get a message
-#autheo is alive!
 ```
 
-## For a fast setup you can download the docker image 
-```bash
-docker pull djynnius/autheo
+Verify at `http://0.0.0.0:8800`:
+```json
+{"status": "success", "message": "autheo v3 is alive!"}
 ```
 
-after downloading
+## Running Tests
 
 ```bash
-docker run --name autheo -p 8800:8800 -it djynnius/autheo
+pytest tests/ -v
 ```
 
-go to your browser and navigate to http://127.0.0.1:8800
-you should see a message:
+## Configuration
 
+All settings are via environment variables (or `.env` file):
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTHEO_DB_BACKEND` | `sqlite` | Database: sqlite, postgres, mysql, mariadb, duckdb |
+| `AUTHEO_DB_HOST` | `localhost` | Database host |
+| `AUTHEO_DB_PORT` | *(auto)* | Database port (5432/3306 auto-detected) |
+| `AUTHEO_DB_NAME` | `autheo` | Database name |
+| `AUTHEO_DB_USER` | | Database user |
+| `AUTHEO_DB_PASSWORD` | | Database password |
+| `AUTHEO_DB_PATH` | `dbs/autheo.db` | File path for SQLite/DuckDB |
+| `AUTHEO_JWT_EXPIRY_DAYS` | `7` | JWT token expiry in days |
+| `AUTHEO_PORT` | `8800` | Server port |
+| `AUTHEO_HOST` | `0.0.0.0` | Server host |
+| `AUTHEO_DEBUG` | `true` | Debug mode (uses Flask dev server; false uses Waitress) |
+
+## Database Setup
+
+### SQLite (default)
+No configuration needed. Database file created automatically at `dbs/autheo.db`.
+
+### PostgreSQL
+```bash
+AUTHEO_DB_BACKEND=postgres
+AUTHEO_DB_HOST=localhost
+AUTHEO_DB_PORT=5432
+AUTHEO_DB_NAME=autheo
+AUTHEO_DB_USER=myuser
+AUTHEO_DB_PASSWORD=mypassword
 ```
-autheo is alive!
+Install driver: `pip install psycopg2-binary`
+
+### MySQL / MariaDB
+```bash
+AUTHEO_DB_BACKEND=mysql
+AUTHEO_DB_HOST=localhost
+AUTHEO_DB_PORT=3306
+AUTHEO_DB_NAME=autheo
+AUTHEO_DB_USER=myuser
+AUTHEO_DB_PASSWORD=mypassword
 ```
+Install driver: `pip install pymysql`
 
-The rest involves calling APIs
-
-### Signing up with JavaScript
-
-You can signup using username/handle
-
-```javascript
-//JavaScript
-data = new FormData()
-data.append('username', 'oluseyi.emeka')
-data.append('password', 'Password@2021')
-fetch(`https://myautheoserver.io/ent/signup`, {method: 'POST', body: data})
-	.then(r=>r.json())
-	.then(r=>console.log(r))
-
+### DuckDB
+```bash
+AUTHEO_DB_BACKEND=duckdb
+AUTHEO_DB_PATH=dbs/autheo.duckdb
 ```
+Install driver: `pip install duckdb-engine`
 
-or using email
+## API Reference
 
-```javascript
-//JavaScript
-data = new FormData()
-data.append('email', 'oemeka@gmail.com')
-data.append('password', 'Password@2021')
-fetch(`https://myautheoserver.io/ent/signup`, {method: 'POST', body: data})
-	.then(r=>r.json())
-	.then(r=>console.log(r))
-
-```
-
-or using both username and email
-
-```javascript
-//JavaScript
-data = new FormData()
-data.append('username', 'oluseyi.emeka')
-data.append('email', 'oemeka@gmail.com')
-data.append('password', 'Password@2021')
-fetch(`https://myautheoserver.io/ent/signup`, {method: 'POST', body: data})
-	.then(r=>r.json())
-	.then(r=>console.log(r))
-
-```
-
-### Loging in with JavaScript
-
-You can login with username/password or email/password combination depending on what you setup
-
-```javascript
-//JavaScript
-data = new FormData()
-data.append('username', 'oluseyi.emeka')
-data.append('password', 'Password@2021')
-fetch(`https://myautheoserver.io/ent/login`, {method: 'POST', body: data})
-	.then(r=>r.json())
-	.then(r=>console.log(r))
-
+All responses follow a standard envelope:
+```json
+{
+  "status": "success" | "error",
+  "message": "description",
+  "data": { ... } | null
+}
 ```
 
-### Loging out with JavaScript
+### Authentication (`/ent`)
 
-logout using the \_id property
+#### POST `/ent/signup`
+Register a new user with email, username, or both.
 
-```javascript
-//JavaScript
-fetch(`https://myautheoserver.io/ent/logout/c68f463cx0d7f823df95y8c50943e651`) 
-	.then(r=>r.json())
-	.then(r=>console.log(r))
-
+```bash
+curl -X POST http://localhost:8800/ent/signup \
+  -d "username=johndoe1" \
+  -d "email=john@example.com" \
+  -d "password=MyPass123!"
+```
+**Response** (201):
+```json
+{"status": "success", "message": "user created", "data": {"_id": "a1b2c3..."}}
 ```
 
-## Other API calls
+#### POST `/ent/login`
+Authenticate with username or email.
 
-### Authentication
-
-Request to get all users
-```javascript
-fetch(`https://myautheoserver.io/ent/get_users`, {method:'POST'}) 
+```bash
+curl -X POST http://localhost:8800/ent/login \
+  -d "username=johndoe1" \
+  -d "password=MyPass123!"
+```
+**Response** (200):
+```json
+{
+  "status": "success",
+  "message": "authenticated",
+  "data": {
+    "_id": "a1b2c3...",
+    "username": "johndoe1",
+    "email": "john@example.com",
+    "token": "eyJ...",
+    "roles": ["administrator", "registered"],
+    "permissions": [{"module": "news", "permissions": 7}],
+    "since": "2024-01-01T00:00:00",
+    "last_login": null
+  }
+}
 ```
 
-Get details for a particular user
-```javascript
-//last part or URL is user id
-fetch(`https://myautheoserver.io/ent/get_user/c68f463cx0d7f823df95y8c50943e651`, {method:'POST'}) 
+#### POST/GET `/ent/logout/<_id>`
+Logout user and invalidate token.
+
+#### POST/GET `/ent/get_users`
+Get all users.
+
+#### POST `/ent/get_user/<_id>`
+Get details for a specific user including roles and permissions.
+
+#### DELETE `/ent/delete_user/<_id>`
+Delete a user (superuser protected).
+
+#### DELETE `/ent/flush_users`
+Delete all users except superuser.
+
+#### PUT `/ent/reset_password/<_id>`
+Update user password.
+
+```bash
+curl -X PUT http://localhost:8800/ent/reset_password/a1b2c3... \
+  -d "password=NewPass456!"
 ```
 
-Delete a particular user
-```javascript
-fetch(`https://myautheoserver.io/ent/delete_user/c68f463cx0d7f823df95y8c50943e651`, {method:'DELETE'})
-```
+#### PUT `/ent/verify/<_id>`
+Mark user as verified.
 
-Delete all users
-```javascript
-fetch(`https://myautheoserver.io/ent/flush_users`, {method:'DELETE'})
-```
+### Authorization (`/ori`)
 
-Reset user password
-```javascript
-data = new FormData()
-data.append('password', 'NewPassword_2022!')
-fetch(`https://myautheoserver.io/ent/reset_password/c68f463cx0d7f823df95y8c50943e651`, {method:'PUT', body: data})
-```
+#### Roles
 
-Verify a user account example by phone or email
-```javascript
-fetch(`https://myautheoserver.io/ent/verify/c68f463cx0d7f823df95y8c50943e651`, {method:'PUT'})
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/ori/create_role/<role>/<description>` | Create a new role |
+| POST | `/ori/get_all_roles` | List all roles |
+| POST | `/ori/get_users_for_role/<role>` | Get users with a role |
+| POST | `/ori/get_roles/<_id>` | Get roles for a user |
+| POST | `/ori/update_role/<role>?role=<new>&description=<desc>` | Update a role (base roles protected) |
+| DELETE | `/ori/delete_role/<role>` | Delete a role (base roles protected) |
 
-### Authorization
+#### User-Role Assignment
 
-Create a new role
-```javascript
-fetch(`https://myautheoserver.io/ori/create_role/accountant/manages the financial transactions`, {method: 'POST'})
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/ori/assign_role/<_id>/<role>` | Assign role to user |
+| DELETE | `/ori/remove_role_from_user/<_id>/<role>` | Remove role from user |
+| POST | `/ori/remove_all_roles_from_user/<_id>` | Remove all roles (superuser protected) |
+| POST | `/ori/flush_user_roles` | Clear all user-role assignments |
 
-Get all roles
-```javascript
-fetch(`https://myautheoserver.io/ori/get_all_roles`, {method: 'POST'})
-```
+#### Modules
 
-Get all roles for a user
-```javascript
-fetch(`https://myautheoserver.io/ori/get_roles/c68f463cx0d7f823df95y8c50943e651`, {method: 'POST'})
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/ori/register_module/<name>/<description>` | Register a module |
+| POST | `/ori/register_modules?1=News&2=Blog` | Bulk register modules |
+| POST | `/ori/remove_module/<module>` | Remove a module |
+| POST | `/ori/flush_modules` | Remove all modules |
+| POST | `/ori/get_modules` | List all modules |
 
-Update an existing user defined role
-```javascript
-fetch(`https://myautheoserver.io/ori/update_role/accountant?role=finance_manager&description=head of financial transactions`, {method: 'POST'})
-```
+#### Permissions
 
-Delete existing user defined role
-```javascript
-fetch(`https://myautheoserver.io/ori/delete_role/accountant`, {method: 'DELETE'})
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/ori/set_role_permissions/<module>/<role>/<permission>` | Set role permissions on module |
+| POST | `/ori/set_user_permissions/<module>/<_id>/<permission>` | Set user permissions on module |
+| POST | `/ori/remove_role_permissions/<module>` | Remove role permissions for module |
+| POST | `/ori/flush_role_permissions` | Clear all role permissions |
+| POST | `/ori/remove_user_permissions/<module>` | Remove user permissions for module |
+| POST | `/ori/flush_user_permissions` | Clear all user permissions |
 
-Assign Role to a User
-```javascript
-fetch(`https://myautheoserver.io/ori/assign_role/c68f463cx0d7f823df95y8c50943e651/accountant`, {method: 'POST'})
-```
+## Permissions System
 
+Autheo uses Unix-style permission values (0-7):
 
-Remove Role from a User
-```javascript
-fetch(`https://myautheoserver.io/ori/remove_role_from_user/c68f463cx0d7f823df95y8c50943e651/accountant`, {method: 'DELETE'})
-```
+| Value | Access |
+|---|---|
+| 0 | No permission |
+| 1 | Read only |
+| 2 | Write/Edit (no read) |
+| 3 | Read + Write |
+| 4 | Execute/Delete only |
+| 5 | Read + Execute/Delete |
+| 6 | Write + Execute/Delete (no read) |
+| 7 | Full (Read + Write + Execute/Delete) |
 
-Remove all Roles for a particular User
-```javascript
-fetch(`https://myautheoserver.io/ori/remove_all_roles_from_user/c68f463cx0d7f823df95y8c50943e651`, {method: 'POST'})
-```
+Permissions can be set at the role level (inherited by all users with that role) or the user level (specific to one user). When both exist, the higher permission value wins.
 
+## Migration from v2
 
-Flush all user role assignments
-```javascript
-fetch(`https://myautheoserver.io/ori/flush_user_roles`, {method: 'POST'})
-```
-
-Register a module
-```javascript
-fetch(`https://myautheoserver.io/ori/register_module/news/current events local and international`, {method: 'POST'})
-```
-
-Register multiple modules using aruments in url string 
-```javascript
-//Does not include description
-fetch(`https://myautheoserver.io/ori/register_modules?1=news&2=gallery&3=blog`, {method: 'POST'})
-```
-
-Remove a module
-```javascript
-fetch(`https://myautheoserver.io/ori/remove_module/news`, {method: 'POST'})
-```
-Removes all modules at once!
-```javascript
-fetch(`https://myautheoserver.io/ori/flush_modules`, {method: 'POST'})
-```
-
-View all modules
-```javascript
-fetch(`https://myautheoserver.io/ori/get_modules`, {method: 'POST'})
-```
-
-##### Add priviledges to a module for a role so everyone with that role inherits those permissions
-The Unix standard is used
-- 0 = no permission, 
-- 1 = Basic eg read only
-- 2 = Edit/Write priviledged without read priviledges
-- 3 = Read and Write access
-- 4 = Highest single priviledge eg Execute, Delete
-- 5 = Read and Execute/Delete
-- 6 = Write and Execute/Delete but not Read
-- 7 = Full priviledges ie Read Edit/Write and Execute/Delete
-
-```javascript
-//set read and execute
-fetch(`https://myautheoserver.io/ori/set_role_permissions/news/accountant/5`, {method: 'POST'})
-```
-
-
-Set permissions that are specific to users
-```javascript
-//set read and edit permissions
-fetch(`https://myautheoserver.io/ori/set_user_permissions/news/c68f463cx0d7f823df95y8c50943e651/3`, {method: 'POST'})
-```
-
-Remove all role permissions for a particular module
-```javascript
-fetch(`https://myautheoserver.io/ori/remove_role_permissions/news`, {method: 'POST'})
-```
-
-Remove all permissions in the modules_roles table
-```javascript
-fetch(`https://myautheoserver.io/ori/flush_role_permissions`, {method: 'POST'})
-```
-
-
-Remove user permissions for a particular module
-```javascript
-fetch(`https://myautheoserver.io/ori/remove_user_permissions/news`, {method: 'POST'})
-```
-
-Remove all permissions in the modules_users table
-```javascript
-fetch(`https://myautheoserver.io/ori/flush_user_permissions`, {method: 'POST'})
-```
+Key changes in v3:
+- All API responses now use a standard envelope with `status`, `message`, and `data` fields
+- HTTP status codes are now semantic (201 for created, 400 for errors, 401 for auth failures, 404 for not found, 409 for conflicts)
+- Boolean fields (`loggedin`, `verified`) now return `true`/`false` instead of `"yes"`/`"no"`
+- Database configuration via environment variables instead of editing source code
+- `dbo.py` replaced by `seed.py` for initialization
+- All SQL injection vulnerabilities fixed (ORM-only queries)
